@@ -1,0 +1,69 @@
+plugins {
+    id 'org.parchmentmc.writtenbooks' version '0.+'
+    id 'java-gradle-plugin'
+    id 'maven-publish'
+    id 'org.cadixdev.licenser' version '0.6.1'
+}
+
+project.group = 'org.parchmentmc'
+
+writtenbooks {
+    githubRepo = 'ParchmentMC/Librarian'
+}
+
+java {
+    toolchain.languageVersion = JavaLanguageVersion.of(8)
+    withSourcesJar()
+}
+
+repositories {
+    maven {
+        name = 'MinecraftForge'
+        url = 'https://maven.minecraftforge.net/'
+    }
+}
+
+dependencies {
+    implementation gradleApi()
+    compileOnly 'net.minecraftforge.gradle:ForgeGradle:5.+'
+    compileOnly 'net.minecraftforge:artifactural:3.0.8'
+    compileOnly 'net.minecraftforge:srgutils:0.4.3'
+    compileOnly 'com.google.guava:guava:30.1-jre'
+    compileOnly 'com.google.code.gson:gson:2.8.7'
+    compileOnly 'de.siegmar:fastcsv:2.0.0'
+}
+
+license {
+    header = file('HEADER.txt')
+    ext {
+        name = 'Librarian'
+        year = 2021
+        fullname = 'ParchmentMC'
+    }
+}
+
+gradlePlugin {
+    plugins {
+        librarian {
+            id = 'org.parchmentmc.librarian'
+            implementationClass = 'org.parchmentmc.librarian.LibrarianPlugin'
+        }
+    }
+}
+
+publishing {
+    publications {
+        pluginMaven(MavenPublication) {
+            pom {
+                name = 'Librarian'
+                description = 'Gradle plugin adding the parchment mappings channel to ForgeGradle.'
+            }
+        }
+    }
+    repositories {
+        maven {
+            name = 'projectLocal'
+            url = "file://${rootProject.file('repo').absolutePath}"
+        }
+    }
+}
