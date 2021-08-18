@@ -52,15 +52,6 @@ license {
     }
 }
 
-gradlePlugin {
-    plugins {
-        librarian {
-            id = 'org.parchmentmc.librarian'
-            implementationClass = 'org.parchmentmc.librarian.LibrarianPlugin'
-        }
-    }
-}
-
 publishing {
     publications {
         pluginMaven(MavenPublication) {

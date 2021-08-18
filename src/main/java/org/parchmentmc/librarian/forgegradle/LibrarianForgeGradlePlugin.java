@@ -24,10 +24,14 @@
 package org.parchmentmc.librarian.forgegradle;
 
 import net.minecraftforge.gradle.mcp.ChannelProvidersExtension;
+import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 
-public class LibrarianForgeGradle {
-    public static void applyForgeGradleIntegration(Project project) {
+import javax.annotation.Nonnull;
+
+public class LibrarianForgeGradlePlugin implements Plugin<Project> {
+    @Override
+    public void apply(@Nonnull Project project) {
         project.getRepositories().maven(repo -> {
             repo.setName("ParchmentMC");
             repo.setUrl("https://maven.parchmentmc.org/");

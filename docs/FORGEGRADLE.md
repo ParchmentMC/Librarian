@@ -11,21 +11,21 @@ buildscript {
         maven { url = 'https://maven.parchmentmc.org' }
 ```
 
-Add Librarian as a buildscript dependency with `classpath group: 'org.parchmentmc', name: 'librarian', version: '1.+', changing: true`.
+Add Librarian as a buildscript dependency with `classpath 'org.parchmentmc:librarian:1.+'`.
 Example:
 ```groovy
 buildscript {
     ...
     dependencies {
         classpath group: 'net.minecraftforge.gradle', name: 'ForgeGradle', version: '5.1.+', changing: true
-        classpath group: 'org.parchmentmc', name: 'librarian', version: '1.+', changing: true
+        classpath 'org.parchmentmc:librarian:1.+'
 ```
 
-Apply the librarian plugin **below the ForgeGradle plugin** using `apply plugin: 'org.parchmentmc.librarian'`.
+Apply the Librarian ForgeGradle plugin **below the ForgeGradle plugin** using `apply plugin: 'org.parchmentmc.librarian.forgegradle'`.
 Example:
 ```groovy
 apply plugin: 'net.minecraftforge.gradle'
-apply plugin: 'org.parchmentmc.librarian'
+apply plugin: 'org.parchmentmc.librarian.forgegradle'
 ```
 
 Finally, update your mappings channel and version to use Parchment.
