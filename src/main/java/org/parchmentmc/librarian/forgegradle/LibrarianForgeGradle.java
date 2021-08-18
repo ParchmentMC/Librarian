@@ -21,15 +21,19 @@
  * SOFTWARE.
  */
 
-package org.parchmentmc.librarian;
+package org.parchmentmc.librarian.forgegradle;
 
-import org.gradle.api.Plugin;
+import net.minecraftforge.gradle.mcp.ChannelProvidersExtension;
 import org.gradle.api.Project;
-import org.parchmentmc.librarian.forgegradle.LibrarianForgeGradle;
 
-public class LibrarianPlugin implements Plugin<Project> {
-    @Override
-    public void apply(Project project) {
-        project.getPlugins().withId("net.minecraftforge.gradle", p -> LibrarianForgeGradle.applyForgeGradleIntegration(project));
+public class LibrarianForgeGradle {
+    public static void applyForgeGradleIntegration(Project project) {
+        project.getRepositories().maven(repo -> {
+            repo.setName("ParchmentMC");
+            repo.setUrl("https://maven.parchmentmc.org/");
+            repo.mavenContent(filter -> filter.includeGroupByRegex("org\\.parchmentmc.*"));
+        });
+
+        project.getExtensions().getByType(ChannelProvidersExtension.class).addProvider(new ParchmentChannelProvider());
     }
 }

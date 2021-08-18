@@ -16,7 +16,14 @@ java {
     withSourcesJar()
 }
 
+configurations {
+    forgegradle
+    compileOnly.extendsFrom forgegradle
+}
+
 repositories {
+    mavenCentral()
+    // ForgeGradle dependencies
     maven {
         name = 'MinecraftForge'
         url = 'https://maven.minecraftforge.net/'
@@ -24,13 +31,16 @@ repositories {
 }
 
 dependencies {
+    // Gradle API
     implementation gradleApi()
-    compileOnly 'net.minecraftforge.gradle:ForgeGradle:5.+'
-    compileOnly 'net.minecraftforge:artifactural:3.0.8'
-    compileOnly 'net.minecraftforge:srgutils:0.4.3'
-    compileOnly 'com.google.guava:guava:30.1-jre'
-    compileOnly 'com.google.code.gson:gson:2.8.7'
-    compileOnly 'de.siegmar:fastcsv:2.0.0'
+
+    // ForgeGradle
+    forgegradle 'net.minecraftforge.gradle:ForgeGradle:5.1.+'
+    forgegradle 'net.minecraftforge:artifactural:3.0.8'
+    forgegradle 'net.minecraftforge:srgutils:0.4.3'
+    forgegradle 'com.google.guava:guava:30.1-jre'
+    forgegradle 'com.google.code.gson:gson:2.8.7'
+    forgegradle 'de.siegmar:fastcsv:2.0.0'
 }
 
 license {

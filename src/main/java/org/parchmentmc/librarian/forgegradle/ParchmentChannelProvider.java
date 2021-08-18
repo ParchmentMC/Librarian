@@ -21,7 +21,7 @@
  * SOFTWARE.
  */
 
-package org.parchmentmc.librarian;
+package org.parchmentmc.librarian.forgegradle;
 
 import com.google.common.base.Functions;
 import com.google.common.collect.ImmutableMap;
