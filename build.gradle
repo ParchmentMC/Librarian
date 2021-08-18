@@ -57,6 +57,12 @@ publishing {
             pom {
                 name = 'Librarian'
                 description = 'Gradle plugin adding the parchment mappings channel to ForgeGradle.'
+                licenses {
+                    license {
+                        name = 'MIT'
+                        url = 'https://opensource.org/licenses/MIT'
+                    }
+                }
             }
         }
     }

@@ -23,13 +23,11 @@
 
 package org.parchmentmc.librarian;
 
-import net.minecraftforge.gradle.mcp.ChannelProviders;
+import net.minecraftforge.gradle.mcp.ChannelProvidersExtension;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 
 public class LibrarianPlugin implements Plugin<Project> {
-    private static final ParchmentChannelProvider PARCHMENT_PROVIDER = new ParchmentChannelProvider();
-
     @Override
     public void apply(Project project) {
         project.getRepositories().maven(repo -> {
@@ -38,6 +36,6 @@ public class LibrarianPlugin implements Plugin<Project> {
             repo.mavenContent(filter -> filter.includeGroupByRegex("org\\.parchmentmc.*"));
         });
 
-        ChannelProviders.addProvider(PARCHMENT_PROVIDER);
+        project.getExtensions().getByType(ChannelProvidersExtension.class).addProvider(new ParchmentChannelProvider());
     }
 }
