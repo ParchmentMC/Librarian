@@ -23,8 +23,8 @@
 
 package org.parchmentmc.librarian.forgegradle;
 
+import net.minecraftforge.gradle.common.util.MinecraftExtension;
 import net.minecraftforge.gradle.mcp.ChannelProvidersExtension;
-import net.minecraftforge.gradle.userdev.UserDevExtension;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 
@@ -43,9 +43,11 @@ public class LibrarianForgeGradlePlugin implements Plugin<Project> {
         project.getExtensions().getByType(ChannelProvidersExtension.class).addProvider(parchmentProvider);
 
         project.afterEvaluate(p -> {
-            UserDevExtension userDev = project.getExtensions().getByType(UserDevExtension.class);
-            String mappingsChannel = userDev.getMappingChannel().getOrNull();
-            String mappingsVersion = userDev.getMappingVersion().getOrNull();
+            MinecraftExtension minecraftExt = project.getExtensions().findByType(MinecraftExtension.class);
+            if (minecraftExt == null)
+                return;
+            String mappingsChannel = minecraftExt.getMappingChannel().getOrNull();
+            String mappingsVersion = minecraftExt.getMappingVersion().getOrNull();
             if (mappingsChannel == null || mappingsVersion == null || !parchmentProvider.getChannels().contains(mappingsChannel))
                 return;
 
