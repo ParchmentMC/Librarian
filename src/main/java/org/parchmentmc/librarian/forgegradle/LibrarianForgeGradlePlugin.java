@@ -24,6 +24,7 @@
 package org.parchmentmc.librarian.forgegradle;
 
 import net.minecraftforge.gradle.mcp.ChannelProvidersExtension;
+import net.minecraftforge.gradle.userdev.UserDevExtension;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 
@@ -38,6 +39,23 @@ public class LibrarianForgeGradlePlugin implements Plugin<Project> {
             repo.mavenContent(filter -> filter.includeGroupByRegex("org\\.parchmentmc.*"));
         });
 
-        project.getExtensions().getByType(ChannelProvidersExtension.class).addProvider(new ParchmentChannelProvider());
+        ParchmentChannelProvider parchmentProvider = new ParchmentChannelProvider();
+        project.getExtensions().getByType(ChannelProvidersExtension.class).addProvider(parchmentProvider);
+
+        project.afterEvaluate(p -> {
+            UserDevExtension userDev = project.getExtensions().getByType(UserDevExtension.class);
+            String mappingsChannel = userDev.getMappingChannel().getOrNull();
+            String mappingsVersion = userDev.getMappingVersion().getOrNull();
+            if (mappingsChannel == null || mappingsVersion == null || !parchmentProvider.getChannels().contains(mappingsChannel))
+                return;
+
+            // Resolve the dependency now, so it gets cached when it's needed in dependency locking hell
+            // This allows people to use snapshot versions of Parchment by avoiding MavenArtifactDownloader if possible
+            try {
+                parchmentProvider.getParchmentZip(project, ParchmentMappingVersion.of(mappingsVersion));
+            } catch (Exception e) {
+                // Swallow any errors and let them happen during actual resolution just in case it somehow fixes itself
+            }
+        });
     }
 }

@@ -77,9 +77,11 @@ import java.nio.file.Paths;
 import java.nio.file.attribute.FileTime;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
-import java.util.regex.Matcher;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
@@ -92,7 +94,6 @@ public class ParchmentChannelProvider implements ChannelProvider {
             .registerTypeAdapter(Named.class, new NamedAdapter())
             .registerTypeAdapter(OffsetDateTime.class, new OffsetDateTimeAdapter())
             .create();
-    protected static final Pattern PARCHMENT_PATTERN = Pattern.compile("(?<mappingsversion>[\\w\\-.]+)-(?<mcpversion>(?<mcversion>[\\d.]+)(?:-\\d{8}\\.\\d{6})?)");
     protected static final Pattern LETTERS_ONLY_PATTERN = Pattern.compile("[a-zA-Z]+");
 
     @Nonnull
@@ -103,21 +104,14 @@ public class ParchmentChannelProvider implements ChannelProvider {
 
     @Nullable
     @Override
-    public File getMappingsFile(MCPRepo mcpRepo, Project project, String channel, String version) throws IOException {
-        // Format is {MAPPINGS_VERSION}-{MC_VERSION}-{MCP_VERSION} where MCP_VERSION is optional
-        Matcher matcher = PARCHMENT_PATTERN.matcher(version);
-        if (!matcher.matches())
-            throw new IllegalStateException("Parchment version of " + version + " is invalid");
+    public File getMappingsFile(MCPRepo mcpRepo, Project project, String channel, String mappingVersion) throws IOException {
+        ParchmentMappingVersion version = ParchmentMappingVersion.of(mappingVersion);
 
-        String mappingsversion = matcher.group("mappingsversion");
-        String mcversion = matcher.group("mcversion");
-        String mcpversion = matcher.group("mcpversion");
-
-        File client = MavenArtifactDownloader.generate(project, "net.minecraft:client:" + mcversion + ":mappings@txt", true);
+        File client = MavenArtifactDownloader.generate(project, "net.minecraft:client:" + version.mcVersion() + ":mappings@txt", true);
         if (client == null)
-            throw new IllegalStateException("Could not create " + mcversion + " official mappings due to missing ProGuard mappings.");
+            throw new IllegalStateException("Could not create " + version.mcVersion() + " official mappings due to missing ProGuard mappings.");
 
-        File mcp = getMCP(project, mcpversion);
+        File mcp = getMCP(project, version.mcpVersion());
         if (mcp == null)
             return null;
 
@@ -125,15 +119,15 @@ public class ParchmentChannelProvider implements ChannelProvider {
 
         IMappingFile srg = findObfToSrg(mcp, config);
         if (srg == null)
-            throw new IllegalStateException("Could not create " + mcpversion + " parchment mappings due to missing MCP's tsrg");
+            throw new IllegalStateException("Could not create " + version.mcpVersion() + " parchment mappings due to missing MCP's tsrg");
 
-        File dep = getParchmentZip(project, mappingsversion, mcversion);
+        File dep = getParchmentZip(project, version);
 
-        File mappings = cacheParchment(project, mcpversion, mappingsversion, "zip");
+        File mappings = cacheParchment(project, version.mcpVersion(), version.parchmentVersion(), "zip");
         HashStore cache = new HashStore()
-                .load(cacheParchment(project, mcpversion, mappingsversion, "zip.input"))
+                .load(cacheParchment(project, version.mcpVersion(), version.parchmentVersion(), "zip.input"))
                 .add("mcp", mcp)
-                .add("mcversion", version)
+                .add("mcversion", mappingVersion)
                 .add("mappings", dep)
                 .add("codever", "1");
 
@@ -245,33 +239,40 @@ public class ParchmentChannelProvider implements ChannelProvider {
         }
     }
 
-    protected static File getParchmentZip(Project project, String mappingsversion, String mcversion) {
-        String artifact = "org.parchmentmc.data:parchment-" + mcversion + ":" + mappingsversion + ":checked@zip";
-        File dep = MavenArtifactDownloader.manual(project, artifact, false); // currently breaks - getDependency(project, artifact);
+    protected File getParchmentZip(Project project, ParchmentMappingVersion version) {
+        String artifact = "org.parchmentmc.data:parchment-" + version.mcVersion() + ":" + version.parchmentVersion() + ":checked@zip";
+        File dep = getDependency(project, artifact);
         if (dep == null) {
             // TODO remove this later? or keep backwards-compatibility with older releases?
-            dep = MavenArtifactDownloader.manual(project, artifact.replace(":checked", ""), false);
+            dep = getDependency(project, artifact.replace(":checked", ""));
         }
         if (dep == null)
-            throw new IllegalStateException("Could not find Parchment version of " + mappingsversion + '-' + mcversion + " with artifact " + artifact);
+            throw new IllegalArgumentException("Could not find Parchment version of " + version.parchmentVersion() + '-' + version.mcVersion() + " with artifact " + artifact);
         return dep;
     }
 
-    // private static Map<Object, File> dependencyCache = new ConcurrentHashMap<>();
-    // protected static synchronized File getDependency(Project project, Object dependencyNotation) {
-    //     File cached = dependencyCache.get(dependencyNotation);
-    //     if (cached != null)
-    //         return cached;
-    //     try {
-    //         Iterator<File> iterator = project.getConfigurations().detachedConfiguration(project.getDependencies().create(dependencyNotation)).resolve().iterator();
-    //         File dependency = iterator.hasNext() ? iterator.next() : null;
-    //         if (dependency != null)
-    //             dependencyCache.put(dependencyNotation, dependency);
-    //         return dependency;
-    //     } catch (ResolveException e) {
-    //         return null;
-    //     }
-    // }
+    private final Map<String, File> dependencyCache = new ConcurrentHashMap<>();
+    protected synchronized File getDependency(Project project, String dependencyNotation) {
+        File cached = dependencyCache.get(dependencyNotation);
+        if (cached != null)
+            return cached;
+
+        File dependency = null;
+        try {
+            Iterator<File> iterator = project.getConfigurations().detachedConfiguration(project.getDependencies().create(dependencyNotation)).resolve().iterator();
+            dependency = iterator.hasNext() ? iterator.next() : null;
+        } catch (Exception e) {
+            project.getLogger().debug("Error when retrieving dependency using Gradle configuration resolution, using MavenArtifactDownloader", e);
+        }
+
+        // Fallback to MavenArtifactDownloader, however it doesn't support snapshot versions
+        if (dependency == null)
+            dependency = MavenArtifactDownloader.manual(project, dependencyNotation, false);
+
+        if (dependency != null)
+            dependencyCache.put(dependencyNotation, dependency);
+        return dependency;
+    }
 
     @Nonnull
     protected static Path getCacheBase(Project project) {

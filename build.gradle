@@ -50,6 +50,7 @@ license {
         year = 2021
         fullname = 'ParchmentMC'
     }
+    exclude '**/*.properties'
 }
 
 publishing {
