@@ -23,15 +23,11 @@
 
 package org.parchmentmc.librarian.forgegradle;
 
-import com.google.common.base.Functions;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Lists;
 import com.google.gson.Gson;
-import com.google.gson.JsonArray;
-import com.google.gson.JsonElement;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonPrimitive;
+import com.google.gson.GsonBuilder;
 import de.siegmar.fastcsv.writer.CsvWriter;
 import de.siegmar.fastcsv.writer.LineDelimiter;
 import net.minecraftforge.gradle.common.config.MCPConfigV2;
@@ -42,34 +38,60 @@ import net.minecraftforge.gradle.common.util.Utils;
 import net.minecraftforge.gradle.mcp.ChannelProvider;
 import net.minecraftforge.gradle.mcp.MCPRepo;
 import net.minecraftforge.srgutils.IMappingFile;
+import net.minecraftforge.srgutils.IMappingFile.IClass;
+import net.minecraftforge.srgutils.IMappingFile.IField;
+import net.minecraftforge.srgutils.IMappingFile.IMethod;
+import net.minecraftforge.srgutils.IMappingFile.INode;
+import net.minecraftforge.srgutils.IMappingFile.IPackage;
+import net.minecraftforge.srgutils.IMappingFile.IParameter;
 import net.minecraftforge.srgutils.IRenamer;
 import org.gradle.api.Project;
+import org.parchmentmc.feather.io.gson.MDCGsonAdapterFactory;
+import org.parchmentmc.feather.io.gson.NamedAdapter;
+import org.parchmentmc.feather.io.gson.OffsetDateTimeAdapter;
+import org.parchmentmc.feather.io.gson.SimpleVersionAdapter;
+import org.parchmentmc.feather.io.gson.metadata.MetadataAdapterFactory;
+import org.parchmentmc.feather.mapping.MappingDataContainer.ClassData;
+import org.parchmentmc.feather.mapping.MappingDataContainer.FieldData;
+import org.parchmentmc.feather.mapping.MappingDataContainer.MethodData;
+import org.parchmentmc.feather.mapping.MappingDataContainer.PackageData;
+import org.parchmentmc.feather.mapping.MappingDataContainer.ParameterData;
+import org.parchmentmc.feather.mapping.VersionedMappingDataContainer;
+import org.parchmentmc.feather.named.Named;
+import org.parchmentmc.feather.util.SimpleVersion;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.ByteArrayInputStream;
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.io.OutputStream;
-import java.io.OutputStreamWriter;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.attribute.FileTime;
+import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
-import java.util.zip.ZipOutputStream;
 
 public class ParchmentChannelProvider implements ChannelProvider {
-    protected static final Gson GSON = new Gson();
+    protected static final Gson GSON = new GsonBuilder()
+            .registerTypeAdapterFactory(new MDCGsonAdapterFactory())
+            .registerTypeAdapter(SimpleVersion.class, new SimpleVersionAdapter())
+            .registerTypeAdapterFactory(new MetadataAdapterFactory())
+            .registerTypeAdapter(Named.class, new NamedAdapter())
+            .registerTypeAdapter(OffsetDateTime.class, new OffsetDateTimeAdapter())
+            .create();
     protected static final Pattern PARCHMENT_PATTERN = Pattern.compile("(?<mappingsversion>[\\w\\-.]+)-(?<mcpversion>(?<mcversion>[\\d.]+)(?:-\\d{8}\\.\\d{6})?)");
     protected static final Pattern LETTERS_ONLY_PATTERN = Pattern.compile("[a-zA-Z]+");
 
@@ -101,7 +123,7 @@ public class ParchmentChannelProvider implements ChannelProvider {
 
         MCPConfigV2 config = MCPConfigV2.getFromArchive(mcp);
 
-        IMappingFile srg = findObfToSrg(project, mcp, config);
+        IMappingFile srg = findObfToSrg(mcp, config);
         if (srg == null)
             throw new IllegalStateException("Could not create " + mcpversion + " parchment mappings due to missing MCP's tsrg");
 
@@ -118,100 +140,109 @@ public class ParchmentChannelProvider implements ChannelProvider {
         if (cache.isSame() && mappings.exists())
             return mappings;
 
-        boolean official = config.isOfficial();
+        VersionedMappingDataContainer mappingData;
+
         try (ZipFile zip = new ZipFile(dep)) {
             ZipEntry entry = zip.getEntry("parchment.json");
             if (entry == null)
                 throw new IllegalStateException("Parchment zip did not contain \"parchment.json\"");
 
-            JsonObject json = GSON.fromJson(new InputStreamReader(zip.getInputStream(entry)), JsonObject.class);
-            String specversion = json.get("version").getAsString();
-            if (!specversion.startsWith("1."))
-                throw new IllegalStateException("Parchment mappings spec version was " + specversion + " and did not start with \"1.\", cannot parse!");
-            IMappingFile mojToObf = IMappingFile.load(client);
-            // Have to do it this way to preserve parameters and eliminate SRG classnames
-            IMappingFile mojToSrg = srg.reverse().chain(mojToObf.reverse()).reverse().rename(new IRenamer() {
-                @Override
-                public String rename(IMappingFile.IClass value) {
-                    return value.getOriginal();
-                }
+            mappingData = GSON.fromJson(new InputStreamReader(zip.getInputStream(entry)), VersionedMappingDataContainer.class);
+        }
+
+        IMappingFile mojToObf = IMappingFile.load(client);
+        // Have to do it this way to preserve parameters and eliminate SRG classnames
+        IMappingFile mojToSrg = srg.reverse().chain(mojToObf.reverse()).reverse().rename(new IRenamer() {
+            @Override
+            public String rename(IClass value) {
+                return value.getOriginal();
+            }
+        });
+
+        // All the CSV data holders
+        String[] header = {"searge", "name", "desc"};
+        List<String[]> packages = Lists.<String[]>newArrayList(header);
+        List<String[]> classes = Lists.<String[]>newArrayList(header);
+        List<String[]> fields = Lists.<String[]>newArrayList(header);
+        List<String[]> methods = Lists.<String[]>newArrayList(header);
+        List<String[]> parameters = Lists.<String[]>newArrayList(header);
+
+        mojToSrg.getPackages().forEach(srgPackage -> {
+            PackageData packageData = mappingData.getPackage(srgPackage.getOriginal());
+            populateMappings(packages, null, srgPackage, packageData != null ? packageData.getJavadoc() : null);
+        });
+
+        mojToSrg.getClasses().forEach(srgClass -> {
+            ClassData classData = mappingData.getClass(srgClass.getOriginal());
+            populateMappings(classes, srgClass, srgClass, classData != null ? classData.getJavadoc() : null);
+
+            srgClass.getFields().forEach(srgField -> {
+                FieldData fieldData = classData != null ? classData.getField(srgField.getOriginal()) : null;
+                populateMappings(fields, srgClass, srgField, fieldData != null ? fieldData.getJavadoc() : null);
             });
 
-            String[] header = {"searge", "name", "desc"};
-            List<String[]> packages = Lists.<String[]>newArrayList(header);
-            List<String[]> classes = Lists.<String[]>newArrayList(header);
-            List<String[]> fields = Lists.<String[]>newArrayList(header);
-            List<String[]> methods = Lists.<String[]>newArrayList(header);
-            List<String[]> parameters = Lists.<String[]>newArrayList(header);
+            srgClass.getMethods().forEach(srgMethod -> {
+                MethodData methodData = classData != null ? classData.getMethod(srgMethod.getOriginal(), srgMethod.getDescriptor()) : null;
+                StringBuilder mdJavadoc = methodData != null ? new StringBuilder(getJavadocs(methodData.getJavadoc())) : new StringBuilder();
+                populateParameters(config.isOfficial(), parameters, srgMethod, methodData, mdJavadoc);
+                populateMappings(methods, srgClass, srgMethod, mdJavadoc.toString());
+            });
+        });
 
-            Map<String, JsonObject> classMap = getNamedJsonMap(json.getAsJsonArray("classes"), false);
-            Map<String, JsonObject> packageMap = getNamedJsonMap(json.getAsJsonArray("packages"), false);
+        if (!mappings.getParentFile().exists())
+            mappings.getParentFile().mkdirs();
 
-            for (IMappingFile.IPackage srgPackage : mojToSrg.getPackages()) {
-                JsonObject pckg = packageMap.get(srgPackage.getOriginal());
-                populateMappings(packages, null, srgPackage, pckg);
-            }
-            for (IMappingFile.IClass srgClass : mojToSrg.getClasses()) {
-                JsonObject cls = classMap.get(srgClass.getOriginal());
-                populateMappings(classes, srgClass, srgClass, cls);
-
-                Map<String, JsonObject> fieldMap = cls == null ? ImmutableMap.of() : getNamedJsonMap(cls.getAsJsonArray("fields"), false);
-                for (IMappingFile.IField srgField : srgClass.getFields()) {
-                    populateMappings(fields, srgClass, srgField, fieldMap.get(srgField.getOriginal()));
-                }
-
-                Map<String, JsonObject> methodMap = cls == null ? ImmutableMap.of() : getNamedJsonMap(cls.getAsJsonArray("methods"), true);
-                for (IMappingFile.IMethod srgMethod : srgClass.getMethods()) {
-                    JsonObject method = methodMap.get(srgMethod.getOriginal() + srgMethod.getDescriptor());
-                    StringBuilder mdJavadoc = new StringBuilder(getJavadocs(method));
-                    List<IMappingFile.IParameter> srgParams = new ArrayList<>(srgMethod.getParameters());
-                    if (method != null && method.has("parameters")) {
-                        JsonArray jsonParams = method.getAsJsonArray("parameters");
-                        if (!official || jsonParams.size() == srgParams.size())
-                            for (int i = 0; i < jsonParams.size(); i++) {
-                                JsonObject parameter = jsonParams.get(i).getAsJsonObject();
-                                boolean isConstructor = method.get("name").getAsString().equals("<init>");
-                                String srgParam;
-                                if (official) {
-                                    srgParam = srgParams.get(i).getMapped();
-                                } else {
-                                    String srgId = srgMethod.getMapped().indexOf('_') == -1
-                                            ? srgMethod.getMapped()
-                                            : srgMethod.getMapped().split("_")[1];
-                                    if (LETTERS_ONLY_PATTERN.matcher(srgId).matches())
-                                        continue; // This means it's a mapped parameter of a functional interface method and we can't use it.
-                                    srgParam = String.format(isConstructor ? "p_i%s_%s_" : "p_%s_%s_", srgId, parameter.get("index").getAsString());
-                                }
-                                String paramName = parameter.has("name") ? parameter.get("name").getAsString() : null;
-                                if (paramName != null) {
-                                    parameters.add(new String[]{srgParam, paramName, ""});
-                                }
-                                String paramJavadoc = getJavadocs(parameter);
-                                if (!paramJavadoc.isEmpty())
-                                    mdJavadoc.append("\\n@param ").append(paramName != null ? paramName : srgParam).append(' ').append(paramJavadoc);
-                            }
-                    }
-                    populateMappings(methods, srgClass, srgMethod, mdJavadoc.toString());
-                }
-            }
-
-            if (!mappings.getParentFile().exists())
-                mappings.getParentFile().mkdirs();
-
-            try (FileOutputStream fos = new FileOutputStream(mappings);
-                    ZipOutputStream out = new ZipOutputStream(fos)) {
-                writeCsv("classes.csv", classes, out);
-                writeCsv("fields.csv", fields, out);
-                writeCsv("methods.csv", methods, out);
-                writeCsv("params.csv", parameters, out);
-                writeCsv("packages.csv", packages, out);
-            }
+        try (FileSystem zipFs = FileSystems.newFileSystem(new URI("jar:" + mappings.toURI()), ImmutableMap.of("create", "true"))) {
+            Path rootPath = zipFs.getPath("/");
+            writeCsv("classes.csv", classes, rootPath);
+            writeCsv("fields.csv", fields, rootPath);
+            writeCsv("methods.csv", methods, rootPath);
+            writeCsv("params.csv", parameters, rootPath);
+            writeCsv("packages.csv", packages, rootPath);
+        } catch (URISyntaxException e) {
+            throw new RuntimeException(e);
         }
 
         cache.save();
         Utils.updateHash(mappings, HashFunction.SHA1);
 
         return mappings;
+    }
+
+    protected static void populateParameters(boolean isOfficialExport, List<String[]> parameters, IMethod srgMethod, MethodData methodData, StringBuilder mdJavadoc) {
+        if (methodData == null || methodData.getParameters().isEmpty())
+            return;
+
+        List<IParameter> srgParams = new ArrayList<>(srgMethod.getParameters());
+        List<ParameterData> methodParams = new ArrayList<>(methodData.getParameters());
+        // If the MCPConfig export is official (1.17+) and the param # doesn't match, we need to skip it
+        // This is because on non-official exports, the parameter SRG id can be reconstructed from method SRG name and parameter JVM index.
+        // This is not possible on official exports with the newer parameter SRG format.
+        if (isOfficialExport && methodParams.size() != srgParams.size())
+            return;
+
+        boolean isConstructor = methodData.getName().equals("<init>");
+        for (int i = 0; i < methodParams.size(); i++) {
+            ParameterData parameter = methodParams.get(i);
+            String srgParam;
+            // official export == 1.17+
+            if (isOfficialExport) {
+                srgParam = srgParams.get(i).getMapped();
+            } else {
+                String srgId = srgMethod.getMapped().indexOf('_') == -1
+                        ? srgMethod.getMapped()
+                        : srgMethod.getMapped().split("_")[1];
+                if (LETTERS_ONLY_PATTERN.matcher(srgId).matches())
+                    continue; // This means it's a mapped parameter of a functional interface method and we can't use it.
+                srgParam = String.format(isConstructor ? "p_i%s_%d_" : "p_%s_%d_", srgId, parameter.getIndex());
+            }
+            String paramName = parameter.getName();
+            if (paramName != null)
+                parameters.add(new String[]{srgParam, paramName, ""});
+            String paramJavadoc = getJavadocs(parameter);
+            if (!paramJavadoc.isEmpty())
+                mdJavadoc.append("\\n@param ").append(paramName != null ? paramName : srgParam).append(' ').append(paramJavadoc);
+        }
     }
 
     protected static File getParchmentZip(Project project, String mappingsversion, String mcversion) {
@@ -242,38 +273,25 @@ public class ParchmentChannelProvider implements ChannelProvider {
     //     }
     // }
 
+    @Nonnull
     protected static Path getCacheBase(Project project) {
         File gradleUserHomeDir = project.getGradle().getGradleUserHomeDir();
         return Paths.get(gradleUserHomeDir.getPath(), "caches", "parchmentgradle");
     }
 
+    @Nonnull
     protected static File getCache(Project project, String... tail) {
         return Paths.get(getCacheBase(project).toString(), tail).toFile();
     }
 
+    @Nonnull
     protected static File cacheParchment(Project project, String mcpversion, String mappingsVersion, String ext) {
         return getCache(project, "org", "parchmentmc", "data", "parchment-" + mcpversion, mappingsVersion, "parchment-" + mcpversion + '-' + mappingsVersion + '.' + ext);
     }
 
-    protected static Map<String, JsonObject> getNamedJsonMap(JsonArray array, boolean hasDescriptor) {
-        if (array == null || array.size() == 0)
-            return ImmutableMap.of();
-        return StreamSupport.stream(array.spliterator(), false)
-                .map(JsonObject.class::cast)
-                .collect(Collectors.toMap(j -> {
-                    String key = j.get("name").getAsString();
-                    if (hasDescriptor)
-                        key += j.get("descriptor").getAsString();
-                    return key;
-                }, Functions.identity()));
-    }
-
-    protected static void populateMappings(List<String[]> mappings, IMappingFile.IClass srgClass, IMappingFile.INode srgNode, JsonObject json) {
-        populateMappings(mappings, srgClass, srgNode, getJavadocs(json));
-    }
-
-    protected static void populateMappings(List<String[]> mappings, IMappingFile.IClass srgClass, IMappingFile.INode srgNode, String desc) {
-        if (srgNode instanceof IMappingFile.IPackage || srgNode instanceof IMappingFile.IClass) {
+    protected static void populateMappings(List<String[]> mappings, IClass srgClass, INode srgNode, Object javadoc) {
+        String desc = getJavadocs(javadoc);
+        if (srgNode instanceof IPackage || srgNode instanceof IClass) {
             String name = srgNode.getMapped().replace('/', '.');
             // TODO fix InstallerTools so that we don't have to expand the csv size for no reason
             if (!desc.isEmpty())
@@ -284,7 +302,7 @@ public class ParchmentChannelProvider implements ChannelProvider {
         String mojName = srgNode.getOriginal();
         boolean isSrg = srgName.startsWith("p_") || srgName.startsWith("func_") || srgName.startsWith("m_") || srgName.startsWith("field_") || srgName.startsWith("f_");
         // If it's not a srg id and has javadocs, we need to add the class to the beginning as it is a special method/field of some kind
-        if (!isSrg && !desc.isEmpty() && (srgNode instanceof IMappingFile.IMethod || srgNode instanceof IMappingFile.IField)) {
+        if (!isSrg && !desc.isEmpty() && (srgNode instanceof IMethod || srgNode instanceof IField)) {
             srgName = srgClass.getMapped().replace('/', '.') + '#' + srgName;
         }
         // Only add to the mappings list if it is mapped or has javadocs
@@ -292,28 +310,26 @@ public class ParchmentChannelProvider implements ChannelProvider {
             mappings.add(new String[]{srgName, mojName, desc});
     }
 
-    protected static String getJavadocs(JsonObject json) {
-        if (json == null)
+    @Nonnull
+    protected static String getJavadocs(Object javadoc) {
+        if (javadoc == null)
             return "";
-        JsonElement element = json.get("javadoc");
-        if (element == null)
+        if (javadoc instanceof String)
+            return (String) javadoc; // Parameters don't use an array for some reason
+        if (!(javadoc instanceof List))
             return "";
-        if (element instanceof JsonPrimitive)
-            return element.getAsString(); // Parameters don't use an array for some reason
-        if (!(element instanceof JsonArray))
-            return "";
-        JsonArray array = (JsonArray) element;
+        List<?> list = (List<?>) javadoc;
         StringBuilder sb = new StringBuilder();
-        int size = array.size();
+        int size = list.size();
         for (int i = 0; i < size; i++) {
-            sb.append(array.get(i).getAsString());
+            sb.append(list.get(i));
             if (i != size - 1)
                 sb.append("\\n");
         }
         return sb.toString();
     }
 
-    protected static IMappingFile findObfToSrg(Project project, File mcp, MCPConfigV2 config) throws IOException {
+    protected static IMappingFile findObfToSrg(File mcp, MCPConfigV2 config) throws IOException {
         return IMappingFile.load(new ByteArrayInputStream(Utils.getZipData(mcp, config.getData("mappings"))));
     }
 
@@ -322,24 +338,13 @@ public class ParchmentChannelProvider implements ChannelProvider {
         return MavenArtifactDownloader.manual(project, "de.oceanlabs.mcp:mcp_config:" + version + "@zip", false);
     }
 
-    protected static void writeCsv(String name, List<String[]> mappings, ZipOutputStream out) throws IOException {
+    protected static void writeCsv(String name, List<String[]> mappings, Path rootPath) throws IOException {
         if (mappings.size() <= 1)
             return;
-        out.putNextEntry(Utils.getStableEntry(name));
-        try (CsvWriter writer = CsvWriter.builder().lineDelimiter(LineDelimiter.LF).build(new UncloseableOutputStreamWriter(out))) {
+        Path csvPath = rootPath.resolve(name);
+        try (CsvWriter writer = CsvWriter.builder().lineDelimiter(LineDelimiter.LF).build(csvPath, StandardCharsets.UTF_8)) {
             mappings.forEach(writer::writeRow);
         }
-        out.closeEntry();
-    }
-
-    private static class UncloseableOutputStreamWriter extends OutputStreamWriter {
-        private UncloseableOutputStreamWriter(OutputStream out) {
-            super(out);
-        }
-
-        @Override
-        public void close() throws IOException {
-            super.flush();
-        }
+        Files.setLastModifiedTime(csvPath, FileTime.fromMillis(Utils.ZIPTIME));
     }
 }

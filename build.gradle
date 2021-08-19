@@ -31,8 +31,8 @@ repositories {
 }
 
 dependencies {
-    // Gradle API
     implementation gradleApi()
+    implementation 'org.parchmentmc.feather:io-gson:0.6.5'
 
     // ForgeGradle
     forgegradle 'net.minecraftforge.gradle:ForgeGradle:5.1.+'
