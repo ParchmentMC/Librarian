@@ -239,7 +239,7 @@ public class ParchmentChannelProvider implements ChannelProvider {
             String paramName = parameter.getName();
             if (paramName != null)
                 parameters.add(new String[]{srgParam, paramName, ""});
-            String paramJavadoc = getJavadocs(parameter);
+            String paramJavadoc = getJavadocs(parameter.getJavadoc());
             if (!paramJavadoc.isEmpty())
                 mdJavadoc.append("\\n@param ").append(paramName != null ? paramName : srgParam).append(' ').append(paramJavadoc);
         }
