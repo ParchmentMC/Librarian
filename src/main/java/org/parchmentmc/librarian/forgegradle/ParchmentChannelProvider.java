@@ -217,12 +217,12 @@ public class ParchmentChannelProvider implements ChannelProvider {
         return mappings;
     }
 
-    protected static IMappingFile genMojToSrg(IMappingFile obfToSrg, IMappingFile mojToObf) {
+    protected IMappingFile genMojToSrg(IMappingFile obfToSrg, IMappingFile mojToObf) {
         // We remap it this way to preserve parameters and eliminate SRG classnames at the same time
         return obfToSrg.reverse().chain(mojToObf.reverse()).reverse();
     }
 
-    protected static void populateParameters(boolean isOfficialExport, List<String[]> parameters, String constructorId, IMethod srgMethod, MethodData methodData, StringBuilder mdJavadoc) {
+    protected void populateParameters(boolean isOfficialExport, List<String[]> parameters, String constructorId, IMethod srgMethod, MethodData methodData, StringBuilder mdJavadoc) {
         if (methodData == null || methodData.getParameters().isEmpty())
             return;
 
@@ -297,22 +297,22 @@ public class ParchmentChannelProvider implements ChannelProvider {
     }
 
     @Nonnull
-    protected static Path getCacheBase(Project project) {
+    protected Path getCacheBase(Project project) {
         File gradleUserHomeDir = project.getGradle().getGradleUserHomeDir();
         return Paths.get(gradleUserHomeDir.getPath(), "caches", "parchmentgradle");
     }
 
     @Nonnull
-    protected static File getCache(Project project, String... tail) {
+    protected File getCache(Project project, String... tail) {
         return Paths.get(getCacheBase(project).toString(), tail).toFile();
     }
 
     @Nonnull
-    protected static File cacheParchment(Project project, String mcpversion, String mappingsVersion, String ext) {
+    protected File cacheParchment(Project project, String mcpversion, String mappingsVersion, String ext) {
         return getCache(project, "org", "parchmentmc", "data", "parchment-" + mcpversion, mappingsVersion, "parchment-" + mcpversion + '-' + mappingsVersion + '.' + ext);
     }
 
-    protected static void populateMappings(List<String[]> mappings, IClass srgClass, INode srgNode, Object javadoc) {
+    protected void populateMappings(List<String[]> mappings, IClass srgClass, INode srgNode, Object javadoc) {
         String desc = getJavadocs(javadoc);
         if (srgNode instanceof IPackage || srgNode instanceof IClass) {
             String name = srgNode.getMapped().replace('/', '.');
@@ -327,7 +327,7 @@ public class ParchmentChannelProvider implements ChannelProvider {
         populateMappings(mappings, srgClass, srgNode, desc, srgName, mojName, isSrg);
     }
 
-    protected static void populateMappings(List<String[]> mappings, IClass srgClass, INode srgNode, String desc, String srgName, String mojName, boolean isSrg) {
+    protected void populateMappings(List<String[]> mappings, IClass srgClass, INode srgNode, String desc, String srgName, String mojName, boolean isSrg) {
         // If it's not a srg id and has javadocs, we need to add the class to the beginning as it is a special method/field of some kind
         if (!isSrg && !desc.isEmpty() && (srgNode instanceof IMethod || srgNode instanceof IField || srgName.equals("<init>"))) {
             srgName = srgClass.getMapped().replace('/', '.') + '#' + srgName;
@@ -338,7 +338,7 @@ public class ParchmentChannelProvider implements ChannelProvider {
     }
 
     @Nonnull
-    protected static String getJavadocs(Object javadoc) {
+    protected String getJavadocs(Object javadoc) {
         if (javadoc == null)
             return "";
         if (javadoc instanceof String)
@@ -356,11 +356,11 @@ public class ParchmentChannelProvider implements ChannelProvider {
         return sb.toString();
     }
 
-    protected static IMappingFile findObfToSrg(File mcp, MCPConfigV2 config) throws IOException {
+    protected IMappingFile findObfToSrg(File mcp, MCPConfigV2 config) throws IOException {
         return IMappingFile.load(new ByteArrayInputStream(Utils.getZipData(mcp, config.getData("mappings"))));
     }
 
-    protected static ListMultimap<String, ConstructorData> getConstructorDataMap(File mcp, MCPConfigV2 config) throws IOException {
+    protected ListMultimap<String, ConstructorData> getConstructorDataMap(File mcp, MCPConfigV2 config) throws IOException {
         if (config.isOfficial())
             return null;
 
@@ -371,11 +371,11 @@ public class ParchmentChannelProvider implements ChannelProvider {
     }
 
     @Nullable
-    protected static File getMCP(Project project, String version) {
+    protected File getMCP(Project project, String version) {
         return MavenArtifactDownloader.manual(project, "de.oceanlabs.mcp:mcp_config:" + version + "@zip", false);
     }
 
-    protected static void writeCsv(String name, List<String[]> mappings, Path rootPath) throws IOException {
+    protected void writeCsv(String name, List<String[]> mappings, Path rootPath) throws IOException {
         if (mappings.size() <= 1)
             return;
         Path csvPath = rootPath.resolve(name);
