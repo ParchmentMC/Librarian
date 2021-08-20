@@ -150,6 +150,7 @@ public class ParchmentChannelProvider implements ChannelProvider {
 
         IMappingFile mojToObf = IMappingFile.load(client);
         IMappingFile mojToSrg = genMojToSrg(obfToSrg, mojToObf);
+        IMappingFile srgToMoj = mojToSrg.reverse();
         ListMultimap<String, ConstructorData> constructorMap = getConstructorDataMap(mcp, config);
 
         // All the CSV data holders
@@ -173,7 +174,7 @@ public class ParchmentChannelProvider implements ChannelProvider {
             if (classData != null && constructorMap != null) {
                 List<ConstructorData> list = constructorMap.get(srgClass.getMapped());
                 list.forEach(data -> {
-                    MethodData methodData = classData.getMethod("<init>", mojToSrg.remapDescriptor(data.descriptor));
+                    MethodData methodData = classData.getMethod("<init>", srgToMoj.remapDescriptor(data.descriptor));
                     if (methodData == null)
                         return;
 
