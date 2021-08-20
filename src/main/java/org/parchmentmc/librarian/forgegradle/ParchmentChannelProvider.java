@@ -23,9 +23,13 @@
 
 package org.parchmentmc.librarian.forgegradle;
 
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
+import com.google.common.collect.ListMultimap;
 import com.google.common.collect.Lists;
+import com.google.common.collect.MultimapBuilder;
+import com.google.common.collect.Multimaps;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import de.siegmar.fastcsv.writer.CsvWriter;
@@ -44,7 +48,6 @@ import net.minecraftforge.srgutils.IMappingFile.IMethod;
 import net.minecraftforge.srgutils.IMappingFile.INode;
 import net.minecraftforge.srgutils.IMappingFile.IPackage;
 import net.minecraftforge.srgutils.IMappingFile.IParameter;
-import net.minecraftforge.srgutils.IRenamer;
 import org.gradle.api.Project;
 import org.parchmentmc.feather.io.gson.MDCGsonAdapterFactory;
 import org.parchmentmc.feather.io.gson.NamedAdapter;
@@ -76,7 +79,6 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.FileTime;
 import java.time.OffsetDateTime;
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -95,6 +97,8 @@ public class ParchmentChannelProvider implements ChannelProvider {
             .registerTypeAdapter(OffsetDateTime.class, new OffsetDateTimeAdapter())
             .create();
     protected static final Pattern LETTERS_ONLY_PATTERN = Pattern.compile("[a-zA-Z]+");
+    protected static final Pattern LINE_PATTERN = Pattern.compile("\r?\n");
+    protected static final Pattern SPACE_PATTERN = Pattern.compile(" ");
 
     @Nonnull
     @Override
@@ -117,8 +121,8 @@ public class ParchmentChannelProvider implements ChannelProvider {
 
         MCPConfigV2 config = MCPConfigV2.getFromArchive(mcp);
 
-        IMappingFile srg = findObfToSrg(mcp, config);
-        if (srg == null)
+        IMappingFile obfToSrg = findObfToSrg(mcp, config);
+        if (obfToSrg == null)
             throw new IllegalStateException("Could not create " + version.mcpVersion() + " parchment mappings due to missing MCP's tsrg");
 
         File dep = getParchmentZip(project, version);
@@ -127,9 +131,9 @@ public class ParchmentChannelProvider implements ChannelProvider {
         HashStore cache = new HashStore()
                 .load(cacheParchment(project, version.mcpVersion(), version.parchmentVersion(), "zip.input"))
                 .add("mcp", mcp)
-                .add("mcversion", mappingVersion)
+                .add("mcversion", version.mcVersion())
                 .add("mappings", dep)
-                .add("codever", "1");
+                .add("codever", "2");
 
         if (cache.isSame() && mappings.exists())
             return mappings;
@@ -145,13 +149,8 @@ public class ParchmentChannelProvider implements ChannelProvider {
         }
 
         IMappingFile mojToObf = IMappingFile.load(client);
-        // Have to do it this way to preserve parameters and eliminate SRG classnames
-        IMappingFile mojToSrg = srg.reverse().chain(mojToObf.reverse()).reverse().rename(new IRenamer() {
-            @Override
-            public String rename(IClass value) {
-                return value.getOriginal();
-            }
-        });
+        IMappingFile mojToSrg = genMojToSrg(obfToSrg, mojToObf);
+        ListMultimap<String, ConstructorData> constructorMap = getConstructorDataMap(mcp, config);
 
         // All the CSV data holders
         String[] header = {"searge", "name", "desc"};
@@ -170,6 +169,20 @@ public class ParchmentChannelProvider implements ChannelProvider {
             ClassData classData = mappingData.getClass(srgClass.getOriginal());
             populateMappings(classes, srgClass, srgClass, classData != null ? classData.getJavadoc() : null);
 
+            // This is only used on non-official exports (1.16 and lower)
+            if (classData != null && constructorMap != null) {
+                List<ConstructorData> list = constructorMap.get(srgClass.getMapped());
+                list.forEach(data -> {
+                    MethodData methodData = classData.getMethod("<init>", mojToSrg.remapDescriptor(data.descriptor));
+                    if (methodData == null)
+                        return;
+
+                    StringBuilder mdJavadoc = new StringBuilder(getJavadocs(methodData.getJavadoc()));
+                    populateParameters(config.isOfficial(), parameters, data.id, null, methodData, mdJavadoc);
+                    populateMappings(methods, srgClass, null, mdJavadoc.toString(), "<init>", "<init>", false);
+                });
+            }
+
             srgClass.getFields().forEach(srgField -> {
                 FieldData fieldData = classData != null ? classData.getField(srgField.getOriginal()) : null;
                 populateMappings(fields, srgClass, srgField, fieldData != null ? fieldData.getJavadoc() : null);
@@ -178,7 +191,7 @@ public class ParchmentChannelProvider implements ChannelProvider {
             srgClass.getMethods().forEach(srgMethod -> {
                 MethodData methodData = classData != null ? classData.getMethod(srgMethod.getOriginal(), srgMethod.getDescriptor()) : null;
                 StringBuilder mdJavadoc = methodData != null ? new StringBuilder(getJavadocs(methodData.getJavadoc())) : new StringBuilder();
-                populateParameters(config.isOfficial(), parameters, srgMethod, methodData, mdJavadoc);
+                populateParameters(config.isOfficial(), parameters, null, srgMethod, methodData, mdJavadoc);
                 populateMappings(methods, srgClass, srgMethod, mdJavadoc.toString());
             });
         });
@@ -203,32 +216,40 @@ public class ParchmentChannelProvider implements ChannelProvider {
         return mappings;
     }
 
-    protected static void populateParameters(boolean isOfficialExport, List<String[]> parameters, IMethod srgMethod, MethodData methodData, StringBuilder mdJavadoc) {
+    protected static IMappingFile genMojToSrg(IMappingFile obfToSrg, IMappingFile mojToObf) {
+        // We remap it this way to preserve parameters and eliminate SRG classnames at the same time
+        return obfToSrg.reverse().chain(mojToObf.reverse()).reverse();
+    }
+
+    protected static void populateParameters(boolean isOfficialExport, List<String[]> parameters, String constructorId, IMethod srgMethod, MethodData methodData, StringBuilder mdJavadoc) {
         if (methodData == null || methodData.getParameters().isEmpty())
             return;
 
-        List<IParameter> srgParams = new ArrayList<>(srgMethod.getParameters());
-        List<ParameterData> methodParams = new ArrayList<>(methodData.getParameters());
-        // If the MCPConfig export is official (1.17+) and the param # doesn't match, we need to skip it
+        List<IParameter> srgParams = srgMethod == null ? ImmutableList.of() : ImmutableList.copyOf(srgMethod.getParameters());
+        List<ParameterData> methodParams = ImmutableList.copyOf(methodData.getParameters());
+        // If the MCPConfig export is official (1.17+) and the # of params doesn't match, we need to skip it.
         // This is because on non-official exports, the parameter SRG id can be reconstructed from method SRG name and parameter JVM index.
         // This is not possible on official exports with the newer parameter SRG format.
-        if (isOfficialExport && methodParams.size() != srgParams.size())
+        if (constructorId == null && isOfficialExport && methodParams.size() != srgParams.size())
             return;
 
-        boolean isConstructor = methodData.getName().equals("<init>");
         for (int i = 0; i < methodParams.size(); i++) {
             ParameterData parameter = methodParams.get(i);
             String srgParam;
             // official export == 1.17+
             if (isOfficialExport) {
                 srgParam = srgParams.get(i).getMapped();
+            } else if (constructorId != null) {
+                srgParam = String.format("p_i%s_%d_", constructorId, parameter.getIndex());
             } else {
+                if (srgMethod == null)
+                    continue;
                 String srgId = srgMethod.getMapped().indexOf('_') == -1
                         ? srgMethod.getMapped()
                         : srgMethod.getMapped().split("_")[1];
                 if (LETTERS_ONLY_PATTERN.matcher(srgId).matches())
                     continue; // This means it's a mapped parameter of a functional interface method and we can't use it.
-                srgParam = String.format(isConstructor ? "p_i%s_%d_" : "p_%s_%d_", srgId, parameter.getIndex());
+                srgParam = String.format("p_%s_%d_", srgId, parameter.getIndex());
             }
             String paramName = parameter.getName();
             if (paramName != null)
@@ -302,8 +323,12 @@ public class ParchmentChannelProvider implements ChannelProvider {
         String srgName = srgNode.getMapped();
         String mojName = srgNode.getOriginal();
         boolean isSrg = srgName.startsWith("p_") || srgName.startsWith("func_") || srgName.startsWith("m_") || srgName.startsWith("field_") || srgName.startsWith("f_");
+        populateMappings(mappings, srgClass, srgNode, desc, srgName, mojName, isSrg);
+    }
+
+    protected static void populateMappings(List<String[]> mappings, IClass srgClass, INode srgNode, String desc, String srgName, String mojName, boolean isSrg) {
         // If it's not a srg id and has javadocs, we need to add the class to the beginning as it is a special method/field of some kind
-        if (!isSrg && !desc.isEmpty() && (srgNode instanceof IMethod || srgNode instanceof IField)) {
+        if (!isSrg && !desc.isEmpty() && (srgNode instanceof IMethod || srgNode instanceof IField || srgName.equals("<init>"))) {
             srgName = srgClass.getMapped().replace('/', '.') + '#' + srgName;
         }
         // Only add to the mappings list if it is mapped or has javadocs
@@ -334,6 +359,16 @@ public class ParchmentChannelProvider implements ChannelProvider {
         return IMappingFile.load(new ByteArrayInputStream(Utils.getZipData(mcp, config.getData("mappings"))));
     }
 
+    protected static ListMultimap<String, ConstructorData> getConstructorDataMap(File mcp, MCPConfigV2 config) throws IOException {
+        if (config.isOfficial())
+            return null;
+
+        String data = new String(Utils.getZipData(mcp, config.getData("constructors")), StandardCharsets.UTF_8);
+        return LINE_PATTERN.splitAsStream(data)
+                .map(SPACE_PATTERN::split)
+                .collect(Multimaps.toMultimap(split -> split[1], ConstructorData::new, MultimapBuilder.hashKeys().arrayListValues()::build));
+    }
+
     @Nullable
     protected static File getMCP(Project project, String version) {
         return MavenArtifactDownloader.manual(project, "de.oceanlabs.mcp:mcp_config:" + version + "@zip", false);
@@ -347,5 +382,21 @@ public class ParchmentChannelProvider implements ChannelProvider {
             mappings.forEach(writer::writeRow);
         }
         Files.setLastModifiedTime(csvPath, FileTime.fromMillis(Utils.ZIPTIME));
+    }
+
+    protected static class ConstructorData {
+        protected final String id;
+        protected final String classHolder;
+        protected final String descriptor;
+
+        protected ConstructorData(String[] split) {
+            this(split[0], split[1], split[2]);
+        }
+
+        protected ConstructorData(String id, String classHolder, String descriptor) {
+            this.id = id;
+            this.classHolder = classHolder;
+            this.descriptor = descriptor;
+        }
     }
 }
