@@ -53,6 +53,15 @@ license {
     exclude '**/*.properties'
 }
 
+gradlePlugin {
+    plugins {
+        librarianForgeGradle {
+            id = 'org.parchmentmc.librarian.forgegradle'
+            implementationClass = 'org.parchmentmc.librarian.forgegradle.LibrarianForgeGradlePlugin'
+        }
+    }
+}
+
 publishing {
     publications {
         pluginMaven(MavenPublication) {

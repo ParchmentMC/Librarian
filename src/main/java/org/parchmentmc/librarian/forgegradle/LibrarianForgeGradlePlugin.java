@@ -33,6 +33,11 @@ import javax.annotation.Nonnull;
 public class LibrarianForgeGradlePlugin implements Plugin<Project> {
     @Override
     public void apply(@Nonnull Project project) {
+        ChannelProvidersExtension channelProviders = project.getExtensions().findByType(ChannelProvidersExtension.class);
+        if (channelProviders == null)
+            throw new IllegalStateException("The Librarian ForgeGradle plugin must be applied after the ForgeGradle one. " +
+                    "For more instructions, see https://github.com/ParchmentMC/Librarian/blob/dev/docs/FORGEGRADLE.md");
+
         project.getRepositories().maven(repo -> {
             repo.setName("ParchmentMC");
             repo.setUrl("https://maven.parchmentmc.org/");
@@ -40,7 +45,7 @@ public class LibrarianForgeGradlePlugin implements Plugin<Project> {
         });
 
         ParchmentChannelProvider parchmentProvider = new ParchmentChannelProvider();
-        project.getExtensions().getByType(ChannelProvidersExtension.class).addProvider(parchmentProvider);
+        channelProviders.addProvider(parchmentProvider);
 
         project.afterEvaluate(p -> {
             MinecraftExtension minecraftExt = project.getExtensions().findByType(MinecraftExtension.class);
