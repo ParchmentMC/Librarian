@@ -138,15 +138,7 @@ public class ParchmentChannelProvider implements ChannelProvider {
         if (cache.isSame() && mappings.exists())
             return mappings;
 
-        VersionedMappingDataContainer mappingData;
-
-        try (ZipFile zip = new ZipFile(dep)) {
-            ZipEntry entry = zip.getEntry("parchment.json");
-            if (entry == null)
-                throw new IllegalStateException("Parchment zip did not contain \"parchment.json\"");
-
-            mappingData = GSON.fromJson(new InputStreamReader(zip.getInputStream(entry)), VersionedMappingDataContainer.class);
-        }
+        VersionedMappingDataContainer mappingData = extractMappingData(dep);
 
         IMappingFile mojToObf = IMappingFile.load(client);
         IMappingFile mojToSrg = genMojToSrg(obfToSrg, mojToObf);
@@ -294,6 +286,16 @@ public class ParchmentChannelProvider implements ChannelProvider {
         if (dependency != null)
             dependencyCache.put(dependencyNotation, dependency);
         return dependency;
+    }
+    
+    protected VersionedMappingDataContainer extractMappingData(File dep) throws IOException {
+        try (ZipFile zip = new ZipFile(dep)) {
+            ZipEntry entry = zip.getEntry("parchment.json");
+            if (entry == null)
+                throw new IllegalStateException("Parchment zip did not contain \"parchment.json\"");
+
+            return GSON.fromJson(new InputStreamReader(zip.getInputStream(entry)), VersionedMappingDataContainer.class);
+        }
     }
 
     @Nonnull
