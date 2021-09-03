@@ -99,6 +99,7 @@ public class ParchmentChannelProvider implements ChannelProvider {
     protected static final Pattern LETTERS_ONLY_PATTERN = Pattern.compile("[a-zA-Z]+");
     protected static final Pattern LINE_PATTERN = Pattern.compile("\r?\n");
     protected static final Pattern SPACE_PATTERN = Pattern.compile(" ");
+    protected static final String SRG_CLASS = "net/minecraft/src/C_";
 
     @Nonnull
     @Override
@@ -133,7 +134,7 @@ public class ParchmentChannelProvider implements ChannelProvider {
                 .add("mcp", mcp)
                 .add("mcversion", version.mcVersion())
                 .add("mappings", dep)
-                .add("codever", "2");
+                .add("codever", "3");
 
         if (cache.isSame() && mappings.exists())
             return mappings;
@@ -317,7 +318,9 @@ public class ParchmentChannelProvider implements ChannelProvider {
     protected void populateMappings(List<String[]> mappings, IClass srgClass, INode srgNode, Object javadoc) {
         String desc = getJavadocs(javadoc);
         if (srgNode instanceof IPackage || srgNode instanceof IClass) {
-            String name = srgNode.getMapped().replace('/', '.');
+            boolean isSrgClass = srgNode.getMapped().startsWith(SRG_CLASS);
+            // If it's a srg classname then it means we should always use the mojmap classname
+            String name = (isSrgClass ? srgNode.getOriginal() : srgNode.getMapped()).replace('/', '.');
             // TODO fix InstallerTools so that we don't have to expand the csv size for no reason
             if (!desc.isEmpty())
                 mappings.add(new String[]{name, name, desc});
@@ -332,7 +335,9 @@ public class ParchmentChannelProvider implements ChannelProvider {
     protected void populateMappings(List<String[]> mappings, IClass srgClass, INode srgNode, String desc, String srgName, String mojName, boolean isSrg) {
         // If it's not a srg id and has javadocs, we need to add the class to the beginning as it is a special method/field of some kind
         if (!isSrg && !desc.isEmpty() && (srgNode instanceof IMethod || srgNode instanceof IField || srgName.equals("<init>"))) {
-            srgName = srgClass.getMapped().replace('/', '.') + '#' + srgName;
+            boolean isSrgClass = srgClass.getMapped().startsWith(SRG_CLASS);
+            // If it's a srg classname then it means we should always use the mojmap classname
+            srgName = (isSrgClass ? srgClass.getOriginal() : srgClass.getMapped()).replace('/', '.') + '#' + srgName;
         }
         // Only add to the mappings list if it is mapped or has javadocs
         if ((isSrg && !srgName.equals(mojName)) || !desc.isEmpty())
