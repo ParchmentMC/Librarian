@@ -134,7 +134,7 @@ public class ParchmentChannelProvider implements ChannelProvider {
                 .add("mcp", mcp)
                 .add("mcversion", version.mcVersion())
                 .add("mappings", dep)
-                .add("codever", "3");
+                .add("codever", "4");
 
         if (cache.isSame() && mappings.exists())
             return mappings;
@@ -242,11 +242,14 @@ public class ParchmentChannelProvider implements ChannelProvider {
                         ? srgMethod.getMapped()
                         : srgMethod.getMapped().split("_")[1];
                 if (LETTERS_ONLY_PATTERN.matcher(srgId).matches())
-                    continue; // This means it's a mapped parameter of a functional interface method and we can't use it.
+                    continue; // This means it's a mapped parameter of a functional interface method, and we can't use it.
                 srgParam = String.format("p_%s_%d_", srgId, parameter.getIndex());
             }
             String paramName = parameter.getName();
-            if (paramName != null)
+            // Canonical record constructors have a special exception in MCPConfig data where the parameter names use their matching field name to support recompilation.
+            // Remapping these special field parameter names is a mistake. See https://github.com/ParchmentMC/Librarian/issues/5
+            // So to fix it, we filter out any parameter names that start with "f_" aka field.
+            if (paramName != null && !srgParam.startsWith("f_"))
                 parameters.add(new String[]{srgParam, paramName, ""});
             String paramJavadoc = getJavadocs(parameter.getJavadoc());
             if (!paramJavadoc.isEmpty())
