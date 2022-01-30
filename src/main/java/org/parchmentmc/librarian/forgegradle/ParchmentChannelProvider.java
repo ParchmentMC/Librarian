@@ -193,6 +193,9 @@ public class ParchmentChannelProvider implements ChannelProvider {
         if (!mappings.getParentFile().exists())
             mappings.getParentFile().mkdirs();
 
+        if (mappings.exists())
+            Files.delete(mappings.toPath());
+
         try (FileSystem zipFs = FileSystems.newFileSystem(new URI("jar:" + mappings.toURI()), ImmutableMap.of("create", "true"))) {
             Path rootPath = zipFs.getPath("/");
             writeCsv("classes.csv", classes, rootPath);
