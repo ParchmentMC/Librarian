@@ -23,39 +23,57 @@
 
 package org.parchmentmc.librarian.forgegradle;
 
+import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class ParchmentMappingVersion {
-    public static final Pattern PARCHMENT_PATTERN = Pattern.compile("(?<mappingsversion>[\\w\\-.]+)-(?<mcpversion>(?<mcversion>[\\d.]+)(?:-\\d{8}\\.\\d{6})?)");
+    public static final Pattern PARCHMENT_PATTERN = Pattern.compile("(?:(?<querymcversion>[\\d.]+)-)?(?<mappingsversion>[\\w\\-.]+?)-(?<mcpversion>(?<mcversion>[\\d.]+)(?:-\\d{8}\\.\\d{6})?)");
+    private final String queryMcVersion;
     private final String parchmentVersion;
     private final String mcVersion;
     private final String mcpVersion;
 
-    public ParchmentMappingVersion(String parchmentVersion, String mcVersion, String mcpVersion) {
+    public ParchmentMappingVersion(@Nullable String queryMcVersion, String parchmentVersion, String mcVersion, String mcpVersion) {
+        this.queryMcVersion = queryMcVersion == null || queryMcVersion.isEmpty() ? mcVersion : queryMcVersion;
         this.parchmentVersion = parchmentVersion;
         this.mcVersion = mcVersion;
         this.mcpVersion = mcpVersion;
     }
 
     public static ParchmentMappingVersion of(String version) {
-        // Format is {MAPPINGS_VERSION}-{MC_VERSION}-{MCP_VERSION} where MCP_VERSION is optional
+        // Format is {QUERY_MC_VERSION}-{MAPPINGS_VERSION}-{MC_VERSION}-{MCP_VERSION} where QUERY_MC_VERSION and MCP_VERSION are optional
         Matcher matcher = PARCHMENT_PATTERN.matcher(version);
         if (!matcher.matches())
             throw new IllegalStateException("Parchment version of " + version + " is invalid");
 
-        return new ParchmentMappingVersion(matcher.group("mappingsversion"), matcher.group("mcversion"), matcher.group("mcpversion"));
+        return new ParchmentMappingVersion(matcher.group("querymcversion"), matcher.group("mappingsversion"), matcher.group("mcversion"), matcher.group("mcpversion"));
     }
 
+    @Nonnull
+    public String queryMcVersion() {
+        return queryMcVersion;
+    }
+
+    @Nonnull
     public String parchmentVersion() {
         return parchmentVersion;
     }
 
+    @Nonnull
     public String mcVersion() {
         return mcVersion;
     }
 
+    @Nonnull
     public String mcpVersion() {
         return mcpVersion;
+    }
+
+    @Override
+    public String toString() {
+        String prefix = queryMcVersion.equals(mcVersion) ? "" : queryMcVersion + "-";
+        return prefix + parchmentVersion + "-" + mcpVersion;
     }
 }

@@ -128,11 +128,12 @@ public class ParchmentChannelProvider implements ChannelProvider {
 
         File dep = getParchmentZip(project, version);
 
-        File mappings = cacheParchment(project, version.mcpVersion(), version.parchmentVersion(), "zip");
+        String queryMcVersionPrefix = version.queryMcVersion().equals(version.mcVersion()) ? "" : version.queryMcVersion() + "-";
+        File mappings = cacheParchment(project, queryMcVersionPrefix, version.mcpVersion(), version.parchmentVersion(), "zip");
         HashStore cache = new HashStore()
-                .load(cacheParchment(project, version.mcpVersion(), version.parchmentVersion(), "zip.input"))
+                .load(cacheParchment(project, queryMcVersionPrefix, version.mcpVersion(), version.parchmentVersion(), "zip.input"))
                 .add("mcp", mcp)
-                .add("mcversion", version.mcVersion())
+                .add("mcversion", version.queryMcVersion())
                 .add("mappings", dep)
                 .add("codever", "4");
 
@@ -190,8 +191,8 @@ public class ParchmentChannelProvider implements ChannelProvider {
             });
         });
 
-        if (!mappings.getParentFile().exists())
-            mappings.getParentFile().mkdirs();
+        if (!mappings.getParentFile().exists() && !mappings.getParentFile().mkdirs())
+            throw new IOException("Failed to create directory " + mappings.getParentFile().getAbsolutePath());
 
         if (mappings.exists())
             Files.delete(mappings.toPath());
@@ -261,14 +262,14 @@ public class ParchmentChannelProvider implements ChannelProvider {
     }
 
     protected File getParchmentZip(Project project, ParchmentMappingVersion version) {
-        String artifact = "org.parchmentmc.data:parchment-" + version.mcVersion() + ":" + version.parchmentVersion() + ":checked@zip";
+        String artifact = "org.parchmentmc.data:parchment-" + version.queryMcVersion() + ":" + version.parchmentVersion() + ":checked@zip";
         File dep = getDependency(project, artifact);
         if (dep == null) {
             // TODO remove this later? or keep backwards-compatibility with older releases?
             dep = getDependency(project, artifact.replace(":checked", ""));
         }
         if (dep == null)
-            throw new IllegalArgumentException("Could not find Parchment version of " + version.parchmentVersion() + '-' + version.mcVersion() + " with artifact " + artifact);
+            throw new IllegalArgumentException("Could not find Parchment version of " + version.parchmentVersion() + '-' + version.queryMcVersion() + " with artifact " + artifact);
         return dep;
     }
 
@@ -317,8 +318,9 @@ public class ParchmentChannelProvider implements ChannelProvider {
     }
 
     @Nonnull
-    protected File cacheParchment(Project project, String mcpversion, String mappingsVersion, String ext) {
-        return getCache(project, "org", "parchmentmc", "data", "parchment-" + mcpversion, mappingsVersion, "parchment-" + mcpversion + '-' + mappingsVersion + '.' + ext);
+    protected File cacheParchment(Project project, String queryMcVersion, String mcpVersion, String mappingsVersion, String ext) {
+        String prefix = "parchment-" + queryMcVersion + mcpVersion;
+        return getCache(project, "org", "parchmentmc", "data", prefix, mappingsVersion, prefix + '-' + mappingsVersion + '.' + ext);
     }
 
     protected void populateMappings(List<String[]> mappings, IClass srgClass, INode srgNode, Object javadoc) {
