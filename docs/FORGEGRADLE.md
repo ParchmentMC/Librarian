@@ -37,7 +37,7 @@ mappings channel: 'parchment', version: '2021.08.15-1.17.1'
 
 ## Cross-Version Mappings
 
-As of Librarian **1.2.0**, you can now use apply Parchment mappings built for any version of Minecraft on top of any other version of Mojang mappings _(mojmaps)_.
+As of Librarian **1.2.0**, you can now use Parchment mappings built for any version of Minecraft on top of any other version of Mojang mappings _(mojmaps)_.
 This is useful when developing for versions where a Parchment release export has not been made.
 
 This feature ensures you have a complete mapping set for classes, method, and fields based on your environment's Minecraft version while also allowing the use of Parchment exports made for any Minecraft version. 
