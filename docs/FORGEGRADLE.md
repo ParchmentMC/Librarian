@@ -34,3 +34,19 @@ It should end up like so:
 ```groovy
 mappings channel: 'parchment', version: '2021.08.15-1.17.1'
 ```
+
+## Cross-Version Mappings
+
+As of Librarian **1.2.0**, you can now use apply Parchment mappings built for any version of Minecraft on top of any other version of Mojang mappings _(mojmaps)_.
+This is useful when developing for versions where a Parchment release export has not been made.
+
+This feature ensures you have a complete mapping set for classes, method, and fields based on your environment's Minecraft version while also allowing the use of Parchment exports made for any Minecraft version. 
+Librarian will try to pull Parchment data where it can into your development environment. 
+New classes or modified methods (due to parameter changes) will not have parameter names or javadocs from Parchment applied.
+
+To use this feature, prepend the Minecraft version of the Parchment export and append the target Mojmaps version to the mappings version, both separated by hyphens.
+For example, to use Parchment export 2022.03.06 for 1.18.1 but for _Mojmaps_ version 1.18.2, change your mappings version to `1.18.1-2022.03.06-1.18.2`.
+It should end up like so:
+```groovy
+mappings channel: 'parchment', version: '1.18.1-2022.03.06-1.18.2'
+```
