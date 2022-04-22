@@ -1,6 +1,6 @@
 /*
  * Librarian
- * Copyright (C) 2022 ParchmentMC
+ * Copyright (C) 2021 ParchmentMC
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -388,10 +388,10 @@ public class ParchmentChannelProvider implements ChannelProvider {
     }
 
     // Converts a JVM parameter index (as used by the parchment export) to a SRG parameter index.
-    public static int jvmToSrg(IMethod srgMethod, int jvmIndex) {
+    protected int jvmToSrg(IMethod srgMethod, int jvmIndex) {
         String args = srgMethod.getDescriptor().substring(1, srgMethod.getDescriptor().lastIndexOf(')'));
         args = args.replaceAll("L.*?;", "L");
-        // Arrays are references wit only regular size, no matter if it's a long or double array
+        // Arrays are references always with a size of one regardless of the array type
         args = args.replaceAll("\\[+.", "L");
         // Non-static methods have an implicit this argument
         int currentIdx = srgMethod.getMetadata().containsKey("is_static") ? 0 : 1;
