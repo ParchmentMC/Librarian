@@ -99,6 +99,8 @@ public class ParchmentChannelProvider implements ChannelProvider {
     protected static final Pattern LETTERS_ONLY_PATTERN = Pattern.compile("[a-zA-Z]+");
     protected static final Pattern LINE_PATTERN = Pattern.compile("\r?\n");
     protected static final Pattern SPACE_PATTERN = Pattern.compile(" ");
+    protected static final Pattern DESCRIPTOR_OBJECT_PATTERN = Pattern.compile("L.+?;");
+    protected static final Pattern DESCRIPTOR_ARRAY_PATTERN = Pattern.compile("\\[+.");
     protected static final String SRG_CLASS = "net/minecraft/src/C_";
 
     @Nonnull
@@ -233,7 +235,7 @@ public class ParchmentChannelProvider implements ChannelProvider {
             String srgParam;
             // official export == 1.17+
             if (isOfficialExport) {
-                srgParam = srgParams.get(jvmToSrg(srgMethod, parameter.getIndex())).getMapped();
+                srgParam = srgParams.get(convertJvmIndexToSrgIndex(srgMethod, parameter.getIndex())).getMapped();
             } else if (constructorId != null) {
                 srgParam = String.format("p_i%s_%d_", constructorId, parameter.getIndex());
             } else {
@@ -387,18 +389,21 @@ public class ParchmentChannelProvider implements ChannelProvider {
         return MavenArtifactDownloader.manual(project, "de.oceanlabs.mcp:mcp_config:" + version + "@zip", false);
     }
 
-    // Converts a JVM parameter index (as used by the parchment export) to a SRG parameter index.
-    protected int jvmToSrg(IMethod srgMethod, int jvmIndex) {
+    /**
+     * Converts a JVM parameter index (as used by the parchment export) to a SRG parameter index using the
+     * method data from the SRG.
+     */
+    protected int convertJvmIndexToSrgIndex(IMethod srgMethod, int jvmIndex) {
         String args = srgMethod.getDescriptor().substring(1, srgMethod.getDescriptor().lastIndexOf(')'));
-        args = args.replaceAll("L.*?;", "L");
+        args = DESCRIPTOR_OBJECT_PATTERN.matcher(args).replaceAll("L");
         // Arrays are references always with a size of one regardless of the array type
-        args = args.replaceAll("\\[+.", "L");
+        args = DESCRIPTOR_ARRAY_PATTERN.matcher(args).replaceAll("L");
         // Non-static methods have an implicit this argument
         int currentIdx = srgMethod.getMetadata().containsKey("is_static") ? 0 : 1;
         int srgIdx = 0;
         while (currentIdx < jvmIndex) {
             // long and double increase the jvm index by 2
-            if (srgIdx < args.length() && args.charAt(srgIdx) == 'J' || args.charAt(srgIdx) == 'D') {
+            if (srgIdx < args.length() && (args.charAt(srgIdx) == 'J' || args.charAt(srgIdx) == 'D')) {
                 currentIdx += 2;
             } else {
                 currentIdx += 1;
