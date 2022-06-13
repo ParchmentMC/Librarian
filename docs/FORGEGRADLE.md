@@ -3,8 +3,8 @@
 To use Librarian with ForgeGradle, you must be on ForgeGradle 5 and Gradle 7.1.1 or higher.
 Start by adding the Librarian plugin using one of the methods below:
 
-<details>
-<summary>Legacy plugin application (1.18- MDK)</summary>
+<details open>
+<summary>Legacy plugin application (1.16.5-1.18.2 MDK)</summary>
     
 First, add `maven { url = 'https://maven.parchmentmc.org' }` to your buildscript repositories.
 Example:
@@ -33,7 +33,7 @@ apply plugin: 'org.parchmentmc.librarian.forgegradle'
 ```
 </details>
 
-<details>
+<details open>
 <summary>New plugin DSL (1.19+ MDK)</summary>
 
 First, add `maven { url = 'https://maven.parchmentmc.org' }` to your plugin repositories in the `settings.gradle` file.
