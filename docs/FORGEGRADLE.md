@@ -1,7 +1,11 @@
 # Librarian with ForgeGradle
 
 To use Librarian with ForgeGradle, you must be on ForgeGradle 5 and Gradle 7.1.1 or higher.
+Start by adding the Librarian plugin using one of the methods below:
 
+<details>
+<summary>Legacy plugin application (1.18- MDK)</summary>
+    
 First, add `maven { url = 'https://maven.parchmentmc.org' }` to your buildscript repositories.
 Example:
 ```groovy
@@ -27,6 +31,31 @@ Example:
 apply plugin: 'net.minecraftforge.gradle'
 apply plugin: 'org.parchmentmc.librarian.forgegradle'
 ```
+</details>
+
+<details>
+<summary>New plugin DSL (1.19+ MDK)</summary>
+
+First, add `maven { url = 'https://maven.parchmentmc.org' }` to your plugin repositories in the `settngs.gradle` file.
+Example:
+```groovy
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+        maven { url = 'https://maven.minecraftforge.net/' }
+        maven { url = 'https://maven.parchmentmc.org' }
+```
+
+Apply the Librarian ForgeGradle plugin **below the ForgeGradle plugin** using `id 'org.parchmentmc.librarian.forgegradle' version '1.+'`.
+Example:
+```groovy
+plugins {
+    // Other plugins like maven-publish, idea, eclipse, etc. go here
+    id 'net.minecraftforge.gradle' version '5.1.+'
+    id 'org.parchmentmc.librarian.forgegradle' version '1.+'
+}
+``` 
+</details>
 
 Finally, update your mappings channel and version to use Parchment.
 For example, to use Parchment export 2021.08.15 for 1.17.1, change your mappings channel to `parchment` and mappings version to `2021.08.15-1.17.1`.
