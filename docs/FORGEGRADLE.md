@@ -36,7 +36,7 @@ apply plugin: 'org.parchmentmc.librarian.forgegradle'
 <details>
 <summary>New plugin DSL (1.19+ MDK)</summary>
 
-First, add `maven { url = 'https://maven.parchmentmc.org' }` to your plugin repositories in the `settngs.gradle` file.
+First, add `maven { url = 'https://maven.parchmentmc.org' }` to your plugin repositories in the `settings.gradle` file.
 Example:
 ```groovy
 pluginManagement {
