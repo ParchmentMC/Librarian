@@ -235,7 +235,13 @@ public class ParchmentChannelProvider implements ChannelProvider {
             String srgParam;
             // official export == 1.17+
             if (isOfficialExport) {
-                srgParam = srgParams.get(convertJvmIndexToSrgIndex(srgMethod, parameter.getIndex())).getMapped();
+                int srgIdx = convertJvmIndexToSrgIndex(srgMethod, parameter.getIndex());
+                if (srgIdx >= srgParams.size()) {
+                    // Something went wrong; cross-version mappings use can cause this.
+                    // Skip this parameter.
+                    continue;
+                }
+                srgParam = srgParams.get(srgIdx).getMapped();
             } else if (constructorId != null) {
                 srgParam = String.format("p_i%s_%d_", constructorId, parameter.getIndex());
             } else {
@@ -390,8 +396,8 @@ public class ParchmentChannelProvider implements ChannelProvider {
     }
 
     /**
-     * Converts a JVM parameter index (as used by the parchment export) to a SRG parameter index using the
-     * method data from the SRG.
+     * Converts a JVM parameter index (as used by the parchment export)
+     * to a SRG parameter index using the SRG method data.
      */
     protected int convertJvmIndexToSrgIndex(IMethod srgMethod, int jvmIndex) {
         String args = srgMethod.getDescriptor().substring(1, srgMethod.getDescriptor().lastIndexOf(')'));
@@ -406,9 +412,9 @@ public class ParchmentChannelProvider implements ChannelProvider {
             if (srgIdx < args.length() && (args.charAt(srgIdx) == 'J' || args.charAt(srgIdx) == 'D')) {
                 currentIdx += 2;
             } else {
-                currentIdx += 1;
+                currentIdx++;
             }
-            srgIdx += 1;
+            srgIdx++;
         }
         return srgIdx;
     }
