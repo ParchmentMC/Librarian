@@ -3,9 +3,11 @@ plugins {
     id 'java-gradle-plugin'
     id 'maven-publish'
     id 'org.cadixdev.licenser' version '0.6.1'
+    id 'groovy'
 }
 
 project.group = 'org.parchmentmc'
+project.version = '7.0-NEO'
 
 writtenbooks {
     githubRepo = 'ParchmentMC/Librarian'
@@ -23,10 +25,12 @@ configurations {
 
 repositories {
     mavenCentral()
+    mavenLocal()
+    gradlePluginPortal()
     // ForgeGradle dependencies
     maven {
-        name = 'MinecraftForge'
-        url = 'https://maven.minecraftforge.net/'
+        name = 'NeoForged'
+        url = 'https://maven.neoforged.net/releases'
     }
 }
 
@@ -35,12 +39,39 @@ dependencies {
     api 'org.parchmentmc.feather:io-gson:0.6.5'
 
     // ForgeGradle
-    forgegradle 'net.minecraftforge.gradle:ForgeGradle:5.1.+'
-    forgegradle 'net.minecraftforge:artifactural:3.0.8'
-    forgegradle 'net.minecraftforge:srgutils:0.4.3'
-    forgegradle 'com.google.guava:guava:30.1-jre'
-    forgegradle 'com.google.code.gson:gson:2.8.7'
-    forgegradle 'de.siegmar:fastcsv:2.0.0'
+    api ('net.neoforged.gradle:userdev:7.0-NEO') { spec ->
+        spec.exclude group: 'org.codehaus.groovy'
+    }
+    api ('net.neoforged.gradle:dsl-userdev:7.0-NEO') { spec ->
+        spec.exclude group: 'org.codehaus.groovy'
+    }
+    api ('net.neoforged.gradle:common:7.0-NEO') { spec ->
+        spec.exclude group: 'org.codehaus.groovy'
+    }
+    api ('net.neoforged.gradle:dsl-common:7.0-NEO') { spec ->
+        spec.exclude group: 'org.codehaus.groovy'
+    }
+    api ('net.neoforged.gradle:mcp:7.0-NEO') { spec ->
+        spec.exclude group: 'org.codehaus.groovy'
+    }
+    api ('net.neoforged.gradle:dsl-mcp:7.0-NEO') { spec ->
+        spec.exclude group: 'org.codehaus.groovy'
+    }
+    api 'net.minecraftforge:srgutils:0.4.3'
+    api 'com.google.guava:guava:30.1-jre'
+    api 'com.google.code.gson:gson:2.8.7'
+    api 'de.siegmar:fastcsv:2.0.0'
+
+    testImplementation gradleTestKit()
+    testImplementation "org.junit.jupiter:junit-jupiter:${project.junit_version}"
+    testImplementation("org.spockframework:spock-core:${project.spock_version}-groovy-${project.groovy_version}") { spec ->
+        spec.exclude group: 'org.codehaus.groovy'
+    }
+    testImplementation ("net.neoforged:TrainingWheels-Gradle-Functional:${project.trainingwheels_version}") { spec ->
+        spec.exclude group: 'org.codehaus.groovy'
+    }
+
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
 license {
@@ -56,8 +87,8 @@ license {
 gradlePlugin {
     plugins {
         librarianForgeGradle {
-            id = 'org.parchmentmc.librarian.forgegradle'
-            implementationClass = 'org.parchmentmc.librarian.forgegradle.LibrarianForgeGradlePlugin'
+            id = 'org.parchmentmc.librarian.neogradle'
+            implementationClass = 'org.parchmentmc.librarian.neogradle.LibrarianNeoGradlePlugin'
         }
     }
 }
@@ -67,7 +98,7 @@ publishing {
         pluginMaven(MavenPublication) {
             pom {
                 name = 'Librarian'
-                description = 'Gradle plugin adding the parchment mappings channel to ForgeGradle.'
+                description = 'Gradle plugin adding the parchment mappings channel to NeoGradle.'
                 licenses {
                     license {
                         name = 'MIT'
@@ -83,4 +114,8 @@ publishing {
             url = "file://${rootProject.file('repo').absolutePath}"
         }
     }
+}
+
+tasks.named('test', Test) {
+    useJUnitPlatform()
 }

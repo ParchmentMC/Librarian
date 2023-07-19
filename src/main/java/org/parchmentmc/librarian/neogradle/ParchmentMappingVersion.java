@@ -21,7 +21,7 @@
  * SOFTWARE.
  */
 
-package org.parchmentmc.librarian.forgegradle;
+package org.parchmentmc.librarian.neogradle;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -75,5 +75,13 @@ public class ParchmentMappingVersion {
     public String toString() {
         String prefix = queryMcVersion.equals(mcVersion) ? "" : queryMcVersion + "-";
         return prefix + parchmentVersion + "-" + mcpVersion;
+    }
+
+    public String asArtifactCoordinate() {
+        return "org.parchmentmc.data:parchment-" + queryMcVersion() + ":" + parchmentVersion() + ":checked@zip";
+    }
+
+    public String asTaskIdentity() {
+        return queryMcVersion() + "_" + parchmentVersion();
     }
 }
