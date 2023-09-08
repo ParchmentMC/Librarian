@@ -29,7 +29,13 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class ParchmentMappingVersion {
-    public static final Pattern PARCHMENT_PATTERN = Pattern.compile("(?:(?<querymcversion>1\\.[\\d.]+)-)?(?<mappingsversion>[\\w\\-.]+?)-(?<mcpversion>(?<mcversion>[\\d.]+)(?:-\\d{8}\\.\\d{6})?)");
+    private static final String MC_VERSION_REGEX = "\\d{1,7}\\.\\d+(?:\\.\\d+)?(?:-(?:pre|rc)\\d+)?|\\d{2,}w\\d{2,}\\w+";
+    private static final Pattern PARCHMENT_PATTERN = Pattern.compile("^"
+            + ("(?:" + "(?<querymcversion>" + MC_VERSION_REGEX + ")" + "-)?")
+            + "(?<mappingsversion>.+)"
+            + "-"
+            + ("(?<mcpversion>" + "(?<mcversion>" + MC_VERSION_REGEX + ")" + "(?:-\\d{8}\\.\\d{6})?" + ")")
+            + "$");
     private final String queryMcVersion;
     private final String parchmentVersion;
     private final String mcVersion;
