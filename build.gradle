@@ -41,6 +41,9 @@ dependencies {
     forgegradle 'com.google.guava:guava:30.1-jre'
     forgegradle 'com.google.code.gson:gson:2.8.7'
     forgegradle 'de.siegmar:fastcsv:2.0.0'
+
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.0'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
 license {
@@ -61,6 +64,11 @@ gradlePlugin {
         }
     }
 }
+
+tasks.named('test', Test) {
+    useJUnitPlatform()
+}
+
 
 publishing {
     publications {
