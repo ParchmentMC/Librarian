@@ -83,7 +83,7 @@ public abstract class CreateParchmentCSVZip extends DefaultRuntime {
     public void create() throws IOException {
         VersionedMappingDataContainer mappingData = extractMappingData();
 
-        IMappingFile obfToSrg = IMappingFile.load(getMcpMappings().getAsFile().get());
+        IMappingFile obfToSrg = IMappingFile.load(getNeoFormMappings().getAsFile().get());
         IMappingFile mojToObf = IMappingFile.load(getClientMappings().getAsFile().get());
         IMappingFile mojToSrg = obfToSrg.reverse().chain(mojToObf.reverse()).reverse();
         IMappingFile srgToMoj = mojToSrg.reverse();
@@ -182,7 +182,7 @@ public abstract class CreateParchmentCSVZip extends DefaultRuntime {
                 srgParam = String.format("p_%s_%d_", srgId, parameter.getIndex());
             }
             String paramName = parameter.getName();
-            // Canonical record constructors have a special exception in MCPConfig data where the parameter names use their matching field name to support recompilation.
+            // Canonical record constructors have a special exception in NeoForm data where the parameter names use their matching field name to support recompilation.
             // Remapping these special field parameter names is a mistake. See https://github.com/ParchmentMC/Librarian/issues/5
             // So to fix it, we filter out any parameter names that start with "f_" aka field.
             if (paramName != null && !srgParam.startsWith("f_"))
@@ -301,7 +301,7 @@ public abstract class CreateParchmentCSVZip extends DefaultRuntime {
 
     @InputFile
     @PathSensitive(PathSensitivity.RELATIVE)
-    public abstract RegularFileProperty getMcpMappings();
+    public abstract RegularFileProperty getNeoFormMappings();
 
     @InputFile
     @PathSensitive(PathSensitivity.RELATIVE)

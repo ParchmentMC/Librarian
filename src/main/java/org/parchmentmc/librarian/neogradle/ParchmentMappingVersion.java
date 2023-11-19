@@ -29,26 +29,26 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class ParchmentMappingVersion {
-    public static final Pattern PARCHMENT_PATTERN = Pattern.compile("(?:(?<querymcversion>1\\.[\\d.]+)-)?(?<mappingsversion>[\\w\\-.]+?)-(?<mcpversion>(?<mcversion>[\\d.]+)(?:-\\d{8}\\.\\d{6})?)");
+    public static final Pattern PARCHMENT_PATTERN = Pattern.compile("(?:(?<querymcversion>1\\.[\\d.]+)-)?(?<mappingsversion>[\\w\\-.]+?)-(?<neoformversion>(?<mcversion>[\\d.]+)(?:-\\d{8}\\.\\d{6})?)");
     private final String queryMcVersion;
     private final String parchmentVersion;
     private final String mcVersion;
-    private final String mcpVersion;
+    private final String neoformVersion;
 
-    public ParchmentMappingVersion(@Nullable String queryMcVersion, String parchmentVersion, String mcVersion, String mcpVersion) {
+    public ParchmentMappingVersion(@Nullable String queryMcVersion, String parchmentVersion, String mcVersion, String neoformVersion) {
         this.queryMcVersion = queryMcVersion == null || queryMcVersion.isEmpty() ? mcVersion : queryMcVersion;
         this.parchmentVersion = parchmentVersion;
         this.mcVersion = mcVersion;
-        this.mcpVersion = mcpVersion;
+        this.neoformVersion = neoformVersion;
     }
 
     public static ParchmentMappingVersion of(String version) {
-        // Format is {QUERY_MC_VERSION}-{MAPPINGS_VERSION}-{MC_VERSION}-{MCP_VERSION} where QUERY_MC_VERSION and MCP_VERSION are optional
+        // Format is {QUERY_MC_VERSION}-{MAPPINGS_VERSION}-{MC_VERSION}-{NEOFORM_VERSION} where QUERY_MC_VERSION and NEOFORM_VERSION are optional
         Matcher matcher = PARCHMENT_PATTERN.matcher(version);
         if (!matcher.matches())
             throw new IllegalStateException("Parchment version of " + version + " is invalid");
 
-        return new ParchmentMappingVersion(matcher.group("querymcversion"), matcher.group("mappingsversion"), matcher.group("mcversion"), matcher.group("mcpversion"));
+        return new ParchmentMappingVersion(matcher.group("querymcversion"), matcher.group("mappingsversion"), matcher.group("mcversion"), matcher.group("neoformversion"));
     }
 
     @Nonnull
@@ -67,14 +67,14 @@ public class ParchmentMappingVersion {
     }
 
     @Nonnull
-    public String mcpVersion() {
-        return mcpVersion;
+    public String mneoformVersion() {
+        return neoformVersion;
     }
 
     @Override
     public String toString() {
         String prefix = queryMcVersion.equals(mcVersion) ? "" : queryMcVersion + "-";
-        return prefix + parchmentVersion + "-" + mcpVersion;
+        return prefix + parchmentVersion + "-" + neoformVersion;
     }
 
     public String asArtifactCoordinate() {
