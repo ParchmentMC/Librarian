@@ -51,7 +51,7 @@ class SimpleTests extends BuilderBasedTestSpecification {
             dependencies {
                 implementation 'net.minecraftforge:forge:1.19.2-43.1.34'
             }
-            """).settingsPlugin('org.gradle.toolchains.foojay-resolver-convention', '0.7.0');
+            """).plugin('java').withToolchains();
         })
 
         when:
