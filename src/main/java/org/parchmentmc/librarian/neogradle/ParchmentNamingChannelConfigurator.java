@@ -32,13 +32,15 @@ import net.neoforged.gradle.dsl.common.runtime.naming.NamingChannel;
 import net.neoforged.gradle.dsl.common.runtime.naming.TaskBuildingContext;
 import net.neoforged.gradle.dsl.common.runtime.tasks.Runtime;
 import net.neoforged.gradle.dsl.common.tasks.WithOutput;
+import net.neoforged.gradle.dsl.common.util.ConfigurationUtils;
 import net.neoforged.gradle.dsl.common.util.NamingConstants;
 import net.neoforged.gradle.neoform.naming.renamer.NeoFormSourceRenamer;
 import net.neoforged.gradle.neoform.runtime.definition.NeoFormRuntimeDefinition;
-import net.neoforged.gradle.neoform.runtime.tasks.DownloadCore;
+import net.neoforged.gradle.neoform.runtime.tasks.Download;
 import net.neoforged.gradle.util.TransformerUtils;
 import org.gradle.api.NamedDomainObjectProvider;
 import org.gradle.api.Project;
+import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.file.RegularFile;
 import org.gradle.api.provider.Property;
 import org.gradle.api.reflect.TypeOf;
@@ -72,12 +74,8 @@ public class ParchmentNamingChannelConfigurator {
         NamedDomainObjectProvider<NamingChannel> officialChannel = minecraftExtension.getNamingChannels().named("official");
 
         minecraftExtension.getNamingChannels().register("parchment", namingChannelProvider -> {
-            // namingChannelProvider.getMinecraftVersionExtractor().set(this::extractMinecraftVersion);
             namingChannelProvider.getApplySourceMappingsTaskBuilder().set(c -> this.buildApplySourceMappingTask(c, officialChannel.get()));
             namingChannelProvider.getApplyCompiledMappingsTaskBuilder().set(officialChannel.flatMap(NamingChannel::getApplyCompiledMappingsTaskBuilder));
-            // namingChannelProvider.getUnapplyCompiledMappingsTaskBuilder().set(officialChannel.flatMap(NamingChannel::getUnapplyCompiledMappingsTaskBuilder));
-            // namingChannelProvider.getUnapplyAccessTransformerMappingsTaskBuilder().set(officialChannel.flatMap(NamingChannel::getUnapplyAccessTransformerMappingsTaskBuilder));
-            // namingChannelProvider.getGenerateDebuggingMappingsJarTaskBuilder().set(officialChannel.flatMap(NamingChannel::getGenerateDebuggingMappingsJarTaskBuilder));
             namingChannelProvider.getHasAcceptedLicense().convention(hasAcceptedLicenseProperty);
             namingChannelProvider.getLicenseText().set(getLicenseText());
         });
@@ -123,13 +121,25 @@ public class ParchmentNamingChannelConfigurator {
         }
         final ParchmentMappingVersion version = ParchmentMappingVersion.of(requestedVersion);
 
+        final Configuration downloadParchmentConfiguration = ConfigurationUtils.temporaryConfiguration(
+            context.getProject(),
+            context.getProject().getDependencies().create(version.asArtifactCoordinate()));
+
         final TaskProvider<? extends Runtime> downloadParchment = context.getProject().getTasks().register(
                 context.getTaskNameBuilder().apply("provideParchment" + version.asTaskIdentity()),
-                DownloadCore.class,
+                Download.class,
                 task -> {
-                    task.getArtifact().set(version.asArtifactCoordinate());
+                    task.getInput().from(downloadParchmentConfiguration);
                 }
         );
+
+        // final TaskProvider<? extends Runtime> downloadParchment = context.getProject().getTasks().register(
+        //         context.getTaskNameBuilder().apply("provideParchment" + version.asTaskIdentity()),
+        //         DownloadCore.class,
+        //         task -> {
+        //             task.getArtifact().set(version.asArtifactCoordinate());
+        //         }
+        // );
 
         context.addTask(downloadParchment);
 
