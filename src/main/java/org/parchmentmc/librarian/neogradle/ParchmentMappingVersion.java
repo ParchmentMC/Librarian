@@ -67,7 +67,7 @@ public class ParchmentMappingVersion {
     }
 
     @Nonnull
-    public String mneoformVersion() {
+    public String neoformVersion() {
         return neoformVersion;
     }
 
