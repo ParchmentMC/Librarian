@@ -51,7 +51,7 @@ class SimpleTests extends BuilderBasedTestSpecification {
             dependencies {
                 implementation 'net.minecraftforge:forge:1.19.2-43.1.34'
             }
-            """).plugin('java').withToolchains();
+            """).withToolchains();
         })
 
         when:

@@ -67,7 +67,7 @@ dependencies {
     testImplementation("org.spockframework:spock-core:${project.spock_version}-groovy-${project.groovy_version}") { spec ->
         spec.exclude group: 'org.codehaus.groovy'
     }
-    testImplementation ("net.neoforged:TrainingWheels-Gradle-Functional:${project.trainingwheels_version}") { spec ->
+    testImplementation ("net.neoforged.trainingwheels:trainingwheels-gradle-functional:${project.trainingwheels_version}") { spec ->
         spec.exclude group: 'org.codehaus.groovy'
     }
 
