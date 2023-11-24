@@ -44,12 +44,12 @@ class SimpleTests extends BuilderBasedTestSpecification {
             minecraft {
                 mappings {
                     channel = parchment()
-                    version '2022.11.27'
+                    version '2023.10.22'
                 }
             }
                         
             dependencies {
-                implementation 'net.minecraftforge:forge:1.19.2-43.1.34'
+                implementation 'net.neoforge:neoforge:20.2.62-beta'
             }
             """).withToolchains();
         })
