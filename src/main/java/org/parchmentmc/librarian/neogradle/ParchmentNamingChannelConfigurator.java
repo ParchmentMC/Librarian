@@ -32,13 +32,15 @@ import net.neoforged.gradle.dsl.common.runtime.naming.NamingChannel;
 import net.neoforged.gradle.dsl.common.runtime.naming.TaskBuildingContext;
 import net.neoforged.gradle.dsl.common.runtime.tasks.Runtime;
 import net.neoforged.gradle.dsl.common.tasks.WithOutput;
+import net.neoforged.gradle.dsl.common.util.ConfigurationUtils;
 import net.neoforged.gradle.dsl.common.util.NamingConstants;
-import net.neoforged.gradle.mcp.naming.renamer.McpSourceRenamer;
-import net.neoforged.gradle.mcp.runtime.definition.McpRuntimeDefinition;
-import net.neoforged.gradle.mcp.runtime.tasks.DownloadArtifact;
+import net.neoforged.gradle.neoform.naming.renamer.NeoFormSourceRenamer;
+import net.neoforged.gradle.neoform.runtime.definition.NeoFormRuntimeDefinition;
+import net.neoforged.gradle.neoform.runtime.tasks.Download;
 import net.neoforged.gradle.util.TransformerUtils;
 import org.gradle.api.NamedDomainObjectProvider;
 import org.gradle.api.Project;
+import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.file.RegularFile;
 import org.gradle.api.provider.Property;
 import org.gradle.api.reflect.TypeOf;
@@ -72,16 +74,11 @@ public class ParchmentNamingChannelConfigurator {
         NamedDomainObjectProvider<NamingChannel> officialChannel = minecraftExtension.getNamingChannels().named("official");
 
         minecraftExtension.getNamingChannels().register("parchment", namingChannelProvider -> {
-            namingChannelProvider.getMinecraftVersionExtractor().set(this::extractMinecraftVersion);
             namingChannelProvider.getApplySourceMappingsTaskBuilder().set(c -> this.buildApplySourceMappingTask(c, officialChannel.get()));
             namingChannelProvider.getApplyCompiledMappingsTaskBuilder().set(officialChannel.flatMap(NamingChannel::getApplyCompiledMappingsTaskBuilder));
-            namingChannelProvider.getUnapplyCompiledMappingsTaskBuilder().set(officialChannel.flatMap(NamingChannel::getUnapplyCompiledMappingsTaskBuilder));
-            namingChannelProvider.getUnapplyAccessTransformerMappingsTaskBuilder().set(officialChannel.flatMap(NamingChannel::getUnapplyAccessTransformerMappingsTaskBuilder));
-            namingChannelProvider.getGenerateDebuggingMappingsJarTaskBuilder().set(officialChannel.flatMap(NamingChannel::getGenerateDebuggingMappingsJarTaskBuilder));
             namingChannelProvider.getHasAcceptedLicense().convention(hasAcceptedLicenseProperty);
             namingChannelProvider.getLicenseText().set(getLicenseText());
         });
-
     }
 
     private String extractMinecraftVersion(Map<String, String> stringStringMap) {
@@ -98,10 +95,10 @@ public class ParchmentNamingChannelConfigurator {
         return "Parchment is published under CC0. Please familiarise yourself with the license found here: https://creativecommons.org/share-your-work/public-domain/cc0/";
     }
 
-    private TaskProvider<? extends Runtime> buildApplySourceMappingTask(TaskBuildingContext context, final NamingChannel mcpNamingChannel) {
-        Optional<McpRuntimeDefinition> runtimeDefinition = context.getRuntimeDefinition()
-                .filter(McpRuntimeDefinition.class::isInstance)
-                .map(McpRuntimeDefinition.class::cast);
+    private TaskProvider<? extends Runtime> buildApplySourceMappingTask(TaskBuildingContext context, final NamingChannel neoformNamingChannel) {
+        Optional<NeoFormRuntimeDefinition> runtimeDefinition = context.getRuntimeDefinition()
+                .filter(NeoFormRuntimeDefinition.class::isInstance)
+                .map(NeoFormRuntimeDefinition.class::cast);
 
         if (!runtimeDefinition.isPresent()) {
             //Resolve delegation
@@ -109,39 +106,51 @@ public class ParchmentNamingChannelConfigurator {
                     .filter(IDelegatingRuntimeDefinition.class::isInstance)
                     .map(IDelegatingRuntimeDefinition.class::cast)
                     .map(IDelegatingRuntimeDefinition::getDelegate)
-                    .filter(McpRuntimeDefinition.class::isInstance)
-                    .map(McpRuntimeDefinition.class::cast);
+                    .filter(NeoFormRuntimeDefinition.class::isInstance)
+                    .map(NeoFormRuntimeDefinition.class::cast);
         }
 
         if (!runtimeDefinition.isPresent()) {
             throw new IllegalStateException("The runtime definition is not present.");
         }
 
-        String requestedVersion = context.getMappingVersion().get(NamingConstants.Version.VERSION);
+        String requestedVersion = MappingUtils.getVersionOrMinecraftVersion(context.getMappingVersion().get());
         if (!requestedVersion.contains("-")) {
             //We do not have an MC version specific ParchmentVersions.
             requestedVersion = requestedVersion + "-" + runtimeDefinition.get().getSpecification().getMinecraftVersion();
         }
         final ParchmentMappingVersion version = ParchmentMappingVersion.of(requestedVersion);
 
+        final Configuration downloadParchmentConfiguration = ConfigurationUtils.temporaryConfiguration(
+            context.getProject(),
+            context.getProject().getDependencies().create(version.asArtifactCoordinate()));
+
         final TaskProvider<? extends Runtime> downloadParchment = context.getProject().getTasks().register(
                 context.getTaskNameBuilder().apply("provideParchment" + version.asTaskIdentity()),
-                DownloadArtifact.class,
+                Download.class,
                 task -> {
-                    task.getArtifactCoordinate().set(version.asArtifactCoordinate());
+                    task.getInput().from(downloadParchmentConfiguration);
                 }
         );
 
+        // final TaskProvider<? extends Runtime> downloadParchment = context.getProject().getTasks().register(
+        //         context.getTaskNameBuilder().apply("provideParchment" + version.asTaskIdentity()),
+        //         DownloadCore.class,
+        //         task -> {
+        //             task.getArtifact().set(version.asArtifactCoordinate());
+        //         }
+        // );
+
         context.addTask(downloadParchment);
 
-        final TaskProvider<? extends Runtime> applySourceMappingsTask = mcpNamingChannel.getApplySourceMappingsTaskBuilder().get().build(context);
+        final TaskProvider<? extends Runtime> applySourceMappingsTask = neoformNamingChannel.getApplySourceMappingsTaskBuilder().get().build(context);
 
-        final McpRuntimeDefinition mcpRuntimeDefinition = runtimeDefinition.get();
-        final String mappingsFilePath = mcpRuntimeDefinition.getMcpConfig().getData("mappings");
-        final File mappingsFile = new File(mcpRuntimeDefinition.getUnpackedMcpZipDirectory(), Objects.requireNonNull(mappingsFilePath));
+        final NeoFormRuntimeDefinition neoformDefinition = runtimeDefinition.get();
+        final String mappingsFilePath = neoformDefinition.getNeoFormConfig().getData("mappings");
+        final File mappingsFile = new File(neoformDefinition.getUnpackedNeoFormZipDirectory(), Objects.requireNonNull(mappingsFilePath));
 
-        final File constructorsDataFile = mcpRuntimeDefinition.getMcpConfig().isOfficial() ? null :
-                new File(mcpRuntimeDefinition.getUnpackedMcpZipDirectory(), Objects.requireNonNull(mcpRuntimeDefinition.getMcpConfig().getData("constructors")));
+        final File constructorsDataFile = neoformDefinition.getNeoFormConfig().isOfficial() ? null :
+                new File(neoformDefinition.getUnpackedNeoFormZipDirectory(), Objects.requireNonNull(neoformDefinition.getNeoFormConfig().getData("constructors")));
 
 
         final TaskProvider<? extends Runtime> createParchmentZipTask = context.getProject().getTasks().register(
@@ -149,8 +158,8 @@ public class ParchmentNamingChannelConfigurator {
                 CreateParchmentCSVZip.class,
                 task -> {
                     task.getClientMappings().set(context.getClientMappings().flatMap(WithOutput::getOutput));
-                    task.getMcpMappings().fileValue(mappingsFile);
-                    task.getIsOfficial().set(mcpRuntimeDefinition.getMcpConfig().isOfficial());
+                    task.getNeoFormMappings().fileValue(mappingsFile);
+                    task.getIsOfficial().set(neoformDefinition.getNeoFormConfig().isOfficial());
                     task.getConstructorsData().fileValue(constructorsDataFile);
                     task.getParchment().set(downloadParchment.flatMap(WithOutput::getOutput));
 
@@ -167,7 +176,7 @@ public class ParchmentNamingChannelConfigurator {
                 applyMappingsToSourceJar.getSourceRenamer().set(
                         createParchmentZipTask.flatMap(WithOutput::getOutput)
                                 .map(RegularFile::getAsFile)
-                                .map(TransformerUtils.guard(McpSourceRenamer::from))
+                                .map(TransformerUtils.guard(NeoFormSourceRenamer::from))
                 );
 
                 applyMappingsToSourceJar.dependsOn(createParchmentZipTask);

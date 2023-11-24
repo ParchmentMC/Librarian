@@ -7,7 +7,7 @@ plugins {
 }
 
 project.group = 'org.parchmentmc'
-project.version = '7.0-NEO'
+project.version = neogradle_version
 
 writtenbooks {
     githubRepo = 'ParchmentMC/Librarian'
@@ -39,22 +39,22 @@ dependencies {
     api 'org.parchmentmc.feather:io-gson:0.6.5'
 
     // ForgeGradle
-    api ('net.neoforged.gradle:userdev:7.0-NEO') { spec ->
+    api (group: 'net.neoforged.gradle', name: 'userdev', version: neogradle_version) { spec ->
         spec.exclude group: 'org.codehaus.groovy'
     }
-    api ('net.neoforged.gradle:dsl-userdev:7.0-NEO') { spec ->
+    api (group: 'net.neoforged.gradle', name: 'dsl-userdev', version: neogradle_version) { spec ->
         spec.exclude group: 'org.codehaus.groovy'
     }
-    api ('net.neoforged.gradle:common:7.0-NEO') { spec ->
+    api (group: 'net.neoforged.gradle', name: 'common', version: neogradle_version) { spec ->
         spec.exclude group: 'org.codehaus.groovy'
     }
-    api ('net.neoforged.gradle:dsl-common:7.0-NEO') { spec ->
+    api (group: 'net.neoforged.gradle', name: 'dsl-common', version: neogradle_version) { spec ->
         spec.exclude group: 'org.codehaus.groovy'
     }
-    api ('net.neoforged.gradle:mcp:7.0-NEO') { spec ->
+    api (group: 'net.neoforged.gradle', name: 'neoform', version: neogradle_version) { spec ->
         spec.exclude group: 'org.codehaus.groovy'
     }
-    api ('net.neoforged.gradle:dsl-mcp:7.0-NEO') { spec ->
+    api (group: 'net.neoforged.gradle', name: 'dsl-neoform', version: neogradle_version) { spec ->
         spec.exclude group: 'org.codehaus.groovy'
     }
     api 'net.minecraftforge:srgutils:0.4.3'
@@ -67,7 +67,7 @@ dependencies {
     testImplementation("org.spockframework:spock-core:${project.spock_version}-groovy-${project.groovy_version}") { spec ->
         spec.exclude group: 'org.codehaus.groovy'
     }
-    testImplementation ("net.neoforged:TrainingWheels-Gradle-Functional:${project.trainingwheels_version}") { spec ->
+    testImplementation ("net.neoforged.trainingwheels:trainingwheels-gradle-functional:${project.trainingwheels_version}") { spec ->
         spec.exclude group: 'org.codehaus.groovy'
     }
 
